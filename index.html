@@ -181,7 +181,10 @@ const DB={"2021":{"grandTotal":32333835.74,"grandBefore":30238923.12,"orderCount
 
 // ── GOOGLE SHEETS CONFIG ──────────────────────────────────────
 const SHEET_ID = '1I0WQePVKcJBa7Jo0c6KiAEr-Dp9cWeJ6E6x67aUMJ3M';
-const YEARS = ['2026','2025','2024','2023','2022','2021'];
+// ── ปีจะถูก detect อัตโนมัติจาก Google Sheets ──
+// เริ่มจากปีปัจจุบัน ย้อนหลัง 10 ปี (ปรับได้)
+const BASE_YEARS = ['2026','2025','2024','2023','2022','2021'];
+let YEARS = [...BASE_YEARS];
 const SALE_MAP = {SW:'แป๊ะ', NV:'จุ๋ม', NT:'หญิง', SS:'เป้ง'};
 const THAI_MONTHS = {'มกราคม':1,'กุมภาพันธ์':2,'มีนาคม':3,'เมษายน':4,'พฤษภาคม':5,'มิถุนายน':6,'กรกฎาคม':7,'สิงหาคม':8,'กันยายน':9,'ตุลาคม':10,'พฤศจิกายน':11,'ธันวาคม':12};
 
@@ -241,19 +244,48 @@ function processRows(rows) {
   };
 }
 
+async function detectAndLoadSheets() {
+  // สร้างลิสต์ปีอัตโนมัติ: ปีนี้ ถึง 2021
+  const currentYear = new Date().getFullYear();
+  const autoYears = [];
+  for (let y = currentYear; y >= 2021; y--) autoYears.push(String(y));
+  YEARS = autoYears;
+
+  // อัพเดท Year Tabs อัตโนมัติ
+  const tabsEl = document.getElementById('year-tabs');
+  tabsEl.innerHTML = '<button class="ytab active" data-y="all">ทั้งหมด</button>' +
+    autoYears.map(y => `<button class="ytab" data-y="${y}">${y}</button>`).join('');
+  // Re-attach click events
+  tabsEl.addEventListener('click', e => {
+    const btn = e.target.closest('.ytab'); if (!btn) return;
+    document.querySelectorAll('.ytab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active'); curYear = btn.dataset.y; render();
+  });
+  return loadFromSheets();
+}
+
 async function loadFromSheets() {
   const status = document.getElementById('load-status');
   if (status) status.style.display = 'flex';
   try {
     const result = {};
+    const foundYears = [];
     for (const yr of YEARS) {
-      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${yr}&t=${Date.now()}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status} for ${yr}`);
-      const text = await res.text();
-      const rows = parseCSV(text);
-      result[yr] = processRows(rows);
+      try {
+        const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${yr}&t=${Date.now()}`;
+        const res = await fetch(url);
+        if (!res.ok) continue; // ไม่มี Sheet ปีนี้ → ข้ามไป
+        const text = await res.text();
+        if (!text || text.includes('errors')) continue;
+        const rows = parseCSV(text);
+        const processed = processRows(rows);
+        if (processed.orderCount === 0) continue; // Sheet ว่าง → ข้ามไป
+        result[yr] = processed;
+        foundYears.push(yr);
+      } catch(e) { continue; }
     }
+    // อัพเดท YEARS ให้เป็นแค่ปีที่มีข้อมูล
+    if (foundYears.length > 0) YEARS = foundYears;
     // Build 'all'
     const allC = {}, allS = {}, allM = {};
     let allT = 0, allB = 0, allO = 0;
@@ -283,7 +315,7 @@ async function loadFromSheets() {
 }
 
 // Auto-refresh every 10 minutes
-setInterval(() => loadFromSheets(), 10 * 60 * 1000);
+setInterval(() => detectAndLoadSheets(), 10 * 60 * 1000);
 
 const fmt=n=>{if(n>=1e8)return(n/1e6).toFixed(1)+'M';if(n>=1e6)return(n/1e6).toFixed(2)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'K';return n.toLocaleString('th-TH',{maximumFractionDigits:0})};
 const fmtFull=n=>n.toLocaleString('th-TH',{maximumFractionDigits:2});
@@ -465,8 +497,8 @@ document.querySelectorAll('.vtab').forEach(btn=>{
 });
 
 render();
-// Load fresh data from Google Sheets (overlays embedded data when successful)
-loadFromSheets();
+// Auto-detect years and load from Google Sheets
+detectAndLoadSheets();
 </script>
 </body>
 </html>
