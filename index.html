@@ -250,12 +250,8 @@ function processRows(rows) {
     const cleanNum = v => parseFloat((v || '').toString().replace(/,/g,'').trim()) || 0;
     const total = cleanNum(row[9]);
     const value = cleanNum(row[7]);
-    // Skip: no customer name, zero total, or looks like a summary row
+    // Skip: no customer name or zero/negative total only
     if (!custName || custName === '' || total <= 0) continue;
-    // Skip obvious summary rows (no date and no SO)
-    const hasDate = (row[1] || '').trim() !== '';
-    const hasSO = so !== '';
-    if (!hasDate && !hasSO) continue;
     // Month from col A (Thai) or col B (date string)
     const mTh = (row[0] || '').trim();
     const mNum = THAI_MONTHS[mTh] || (()=>{
