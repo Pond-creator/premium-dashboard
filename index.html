@@ -241,19 +241,15 @@ function parseCSV(text) {
 
 // แมพรหัสเซลล์เก่าที่รู้ชื่อจริงแล้ว
 const SALE_MAP = {SW:'แป๊ะ', NV:'จุ๋ม', NT:'หญิง', SS:'เป้ง'};
+// เพิ่มเซลล์ใหม่ได้ที่นี่ เช่น PP:'ชื่อจริง'
 function getSalesperson(so) {
   if (!so) return 'อื่นๆ';
   const s = so.toString().trim();
-  // แมพชื่อจริงสำหรับเซลล์เก่าที่รู้ชื่อแล้ว
+  // แมพเฉพาะเซลล์ที่ลงทะเบียนใน SALE_MAP เท่านั้น
   for (const [code, name] of Object.entries(SALE_MAP)) {
     if (s.includes(code)) return name;
   }
-  // ดึงรหัสย่อเซลล์อัตโนมัติ: หากลุ่มตัวอักษรใหญ่ 2-5 ตัวที่ไม่ใช่ตัวเลข
-  const matches = s.match(/[A-Z]{2,5}/g);
-  if (matches && matches.length > 0) {
-    // เอาตัวแรกที่เจอ (รหัสเซลล์มักอยู่ต้น SO)
-    return matches[0];
-  }
+  // ถ้าไม่รู้จัก → จัดเป็น อื่นๆ (ไม่แสดงรหัสแปลกๆ)
   return 'อื่นๆ';
 }
 
