@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Premium UP — Premium Dashboard 2021–2026</title>
+<title>🎁 Premium UP — Premium Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎁</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#07090f;--s1:#0e1117;--s2:#141923;--s3:#1a2030;--border:#1e2840;--border2:#243050;--accent:#4f8ef7;--green:#22c55e;--amber:#f59e0b;--red:#ef4444;--purple:#a78bfa;--text:#dde4f0;--muted:#5a6a88;--dim:#2a3550;--r:14px}
@@ -84,6 +85,15 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
 .page-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .footer{text-align:center;padding:16px;color:var(--dim);font-size:10px;font-family:'IBM Plex Mono',monospace}
 
+.page-compare-active .ytab:not([data-y="all"]) {
+  opacity: 0.25;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+.page-compare-active .ytab[data-y="all"] {
+  background: var(--accent) !important;
+  color: #fff !important;
+}
 /* ── MOBILE RESPONSIVE ── */
 @media(max-width:768px){
   .header{padding:12px 16px;flex-wrap:wrap;gap:8px}
@@ -125,7 +135,7 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
   <div class="header-controls">
     <div class="year-tabs" id="year-tabs">
       <button class="ytab" data-y="all">ทั้งหมด</button>
-      <button class="ytab active" data-y="2026">2026</button>
+      <button class="ytab" data-y="2026">2026</button>
       <button class="ytab" data-y="2025">2025</button>
       <button class="ytab" data-y="2024">2024</button>
       <button class="ytab" data-y="2023">2023</button>
@@ -158,12 +168,11 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
 
   <!-- COMPARE -->
   <div class="vpage" id="page-compare">
-    <div class="kpi-grid" id="kpi-compare" style="grid-template-columns:repeat(3,1fr)"></div>
-    <div class="row row-2" style="margin-top:16px">
+    <div class="card" style="margin-bottom:16px"><div class="card-title"><span class="pip" style="background:var(--purple)"></span>ยอดขายแต่ละเซลล์ (แยกปี)</div><div id="sale-compare-tbl"></div></div>
+    <div class="row row-2">
       <div class="card"><div class="card-title"><span class="pip"></span>ยอดขายรวมแต่ละปี</div><div class="ycompare" id="ycompare-total"></div></div>
       <div class="card" style="--c:var(--green)"><div class="card-title"><span class="pip" style="background:var(--green)"></span>จำนวน Order แต่ละปี</div><div class="ycompare" id="ycompare-orders"></div></div>
     </div>
-    <div class="card"><div class="card-title"><span class="pip" style="background:var(--purple)"></span>ยอดขายแต่ละเซลล์ (แยกปี)</div><div id="sale-compare-tbl"></div></div>
   </div>
 
   <!-- MONTHLY -->
@@ -211,7 +220,6 @@ const SHEET_ID = '1I0WQePVKcJBa7Jo0c6KiAEr-Dp9cWeJ6E6x67aUMJ3M';
 // เริ่มจากปีปัจจุบัน ย้อนหลัง 10 ปี (ปรับได้)
 const BASE_YEARS = ['2026','2025','2024','2023','2022','2021'];
 let YEARS = [...BASE_YEARS];
-const SALE_MAP = {SW:'แป๊ะ', NV:'จุ๋ม', NT:'หญิง', SS:'เป้ง'};
 const THAI_MONTHS = {'มกราคม':1,'กุมภาพันธ์':2,'มีนาคม':3,'เมษายน':4,'พฤษภาคม':5,'มิถุนายน':6,'กรกฎาคม':7,'สิงหาคม':8,'กันยายน':9,'ตุลาคม':10,'พฤศจิกายน':11,'ธันวาคม':12};
 
 function parseCSV(text) {
@@ -231,10 +239,20 @@ function parseCSV(text) {
   return rows;
 }
 
+// แมพรหัสเซลล์เก่าที่รู้ชื่อจริงแล้ว
+const SALE_MAP = {SW:'แป๊ะ', NV:'จุ๋ม', NT:'หญิง', SS:'เป้ง'};
 function getSalesperson(so) {
   if (!so) return 'อื่นๆ';
+  const s = so.toString().trim();
+  // แมพชื่อจริงสำหรับเซลล์เก่าที่รู้ชื่อแล้ว
   for (const [code, name] of Object.entries(SALE_MAP)) {
-    if (so.includes(code)) return name;
+    if (s.includes(code)) return name;
+  }
+  // ดึงรหัสย่อเซลล์อัตโนมัติ: หากลุ่มตัวอักษรใหญ่ 2-5 ตัวที่ไม่ใช่ตัวเลข
+  const matches = s.match(/[A-Z]{2,5}/g);
+  if (matches && matches.length > 0) {
+    // เอาตัวแรกที่เจอ (รหัสเซลล์มักอยู่ต้น SO)
+    return matches[0];
   }
   return 'อื่นๆ';
 }
@@ -286,12 +304,7 @@ async function detectAndLoadSheets() {
   const tabsEl = document.getElementById('year-tabs');
   tabsEl.innerHTML = '<button class="ytab active" data-y="all">ทั้งหมด</button>' +
     autoYears.map(y => `<button class="ytab" data-y="${y}">${y}</button>`).join('');
-  // Re-attach click events
-  tabsEl.addEventListener('click', e => {
-    const btn = e.target.closest('.ytab'); if (!btn) return;
-    document.querySelectorAll('.ytab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active'); curYear = btn.dataset.y; render();
-  });
+  // Year tabs use the global event listener below
   return loadFromSheets();
 }
 
@@ -355,7 +368,7 @@ const fmt=n=>{if(n>=1e8)return(n/1e6).toFixed(1)+'M';if(n>=1e6)return(n/1e6).toF
 const fmtFull=n=>n.toLocaleString('th-TH',{maximumFractionDigits:2});
 const pct=(a,b)=>b?((a/b-1)*100).toFixed(1):null;
 
-let curYear='2026';
+let curYear='all';
 let custPage=0;
 
 function getD(y){return DB[y];}
@@ -489,10 +502,6 @@ function render(){
   renderSaleBars(document.getElementById('sale-bars'),d.bySalesperson);
 
   // Compare
-  const allT=Object.values(DB).filter(x=>x.grandTotal).reduce((a,d)=>a+d.grandTotal,0);
-  const allO=Object.values(DB).filter(x=>x.orderCount).reduce((a,d)=>a+d.orderCount,0);
-  const best=Object.entries(DB).filter(([k])=>k!=='all').sort((a,b)=>b[1].grandTotal-a[1].grandTotal)[0];
-  document.getElementById('kpi-compare').innerHTML=`<div class="kpi" style="--c:var(--accent)"><div class="lbl">ยอดขายรวม 6 ปี</div><div class="val">${fmt(allT)}<sup> บ.</sup></div></div><div class="kpi" style="--c:var(--amber)"><div class="lbl">Orders รวม 6 ปี</div><div class="val">${allO.toLocaleString()}<sup> ออเดอร์</sup></div></div><div class="kpi" style="--c:var(--green)"><div class="lbl">ปีที่ยอดดีสุด</div><div class="val">${best[0]}</div><div class="sub">${fmt(best[1].grandTotal)} บ.</div></div>`;
   renderYCompare(document.getElementById('ycompare-total'),'grandTotal');
   renderYCompare(document.getElementById('ycompare-orders'),'orderCount');
   renderSaleCompare();
@@ -527,11 +536,23 @@ document.querySelectorAll('.vtab').forEach(btn=>{
     document.querySelectorAll('.vpage').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('page-'+btn.dataset.v).classList.add('active');
+    // Toggle year tabs state for compare page
+    if(btn.dataset.v==='compare'){
+      document.querySelector('.header').classList.add('page-compare-active');
+      // Force curYear to 'all' on compare page
+      curYear='all';
+      document.querySelectorAll('.ytab').forEach(t=>t.classList.remove('active'));
+      document.querySelector('.ytab[data-y="all"]').classList.add('active');
+      render();
+    } else {
+      document.querySelector('.header').classList.remove('page-compare-active');
+    }
   });
 });
 
+// Load from Google Sheets (calls render() internally)
+// render() with embedded data first for instant display
 render();
-// Auto-detect years and load from Google Sheets
 detectAndLoadSheets();
 </script>
 </body>
