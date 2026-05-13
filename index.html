@@ -243,19 +243,28 @@ function processRows(rows) {
   let grandTotal = 0, grandBefore = 0, orders = 0;
   const monthly = {}, bySale = {}, byCust = {};
   for (const row of rows) {
+    if (!row || row.length < 8) continue;
     const custName = (row[3] || '').trim();
     const so = (row[5] || '').trim();
-    const total = parseFloat((row[9] || '').replace(/,/g,'')) || 0;
-    const value = parseFloat((row[7] || '').replace(/,/g,'')) || 0;
-    if (!custName || total <= 0) continue;
-    // Month
+    // Clean number: remove commas, spaces, handle empty
+    const cleanNum = v => parseFloat((v || '').toString().replace(/,/g,'').trim()) || 0;
+    const total = cleanNum(row[9]);
+    const value = cleanNum(row[7]);
+    // Skip: no customer name, zero total, or looks like a summary row
+    if (!custName || custName === '' || total <= 0) continue;
+    // Skip obvious summary rows (no date and no SO)
+    const hasDate = (row[1] || '').trim() !== '';
+    const hasSO = so !== '';
+    if (!hasDate && !hasSO) continue;
+    // Month from col A (Thai) or col B (date string)
     const mTh = (row[0] || '').trim();
-    const mNum = THAI_MONTHS[mTh] || null;
+    const mNum = THAI_MONTHS[mTh] || (()=>{
+      const d = new Date(row[1]);
+      return isNaN(d) ? null : d.getMonth()+1;
+    })();
     if (mNum) monthly[mNum] = (monthly[mNum] || 0) + total;
-    // Salesperson
     const sp = getSalesperson(so);
     bySale[sp] = (bySale[sp] || 0) + total;
-    // Customer
     byCust[custName] = (byCust[custName] || 0) + total;
     grandTotal += total; grandBefore += value; orders++;
   }
@@ -313,24 +322,27 @@ async function loadFromSheets() {
     // อัพเดท YEARS ให้เป็นแค่ปีที่มีข้อมูล
     if (foundYears.length > 0) YEARS = foundYears;
     // Build 'all'
-    const allC = {}, allS = {}, allM = {};
-    let allT = 0, allB = 0, allO = 0;
-    for (const yr of YEARS) {
-      const d = result[yr];
-      allT += d.grandTotal; allB += d.grandBefore; allO += d.orderCount;
-      d.bySalesperson.forEach(s => { allS[s.name] = (allS[s.name]||0)+s.total; });
-      d.topCustomers.forEach(c => { allC[c.name] = (allC[c.name]||0)+c.total; });
-      d.monthly.forEach(m => { allM[m.month] = (allM[m.month]||0)+m.total; });
-    }
-    result['all'] = {
-      grandTotal: Math.round(allT*100)/100, grandBefore: Math.round(allB*100)/100,
-      orderCount: allO, customerCount: Object.keys(allC).length,
-      monthly: Object.entries(allM).map(([m,t])=>({month:+m,total:Math.round(t*100)/100})).sort((a,b)=>a.month-b.month),
-      bySalesperson: Object.entries(allS).map(([n,t])=>({name:n,total:Math.round(t*100)/100})).sort((a,b)=>b.total-a.total),
-      topCustomers: Object.entries(allC).map(([n,t])=>({name:n,total:Math.round(t*100)/100})).sort((a,b)=>b.total-a.total),
-    };
+
     // Update global DB and re-render
     Object.assign(DB, result);
+    // Rebuild 'all' from fresh data
+    const allC={}, allS={}, allM={};
+    let allT=0, allB=0, allO=0;
+    for (const yr of foundYears.length?foundYears:YEARS) {
+      if (!DB[yr]) continue;
+      const d=DB[yr];
+      allT+=d.grandTotal; allB+=d.grandBefore; allO+=d.orderCount;
+      (d.bySalesperson||[]).forEach(s=>{allS[s.name]=(allS[s.name]||0)+s.total;});
+      (d.topCustomers||[]).forEach(c=>{allC[c.name]=(allC[c.name]||0)+c.total;});
+      (d.monthly||[]).forEach(m=>{allM[m.month]=(allM[m.month]||0)+m.total;});
+    }
+    DB['all']={
+      grandTotal:Math.round(allT*100)/100, grandBefore:Math.round(allB*100)/100,
+      orderCount:allO, customerCount:Object.keys(allC).length,
+      monthly:Object.entries(allM).map(([m,t])=>({month:+m,total:Math.round(t*100)/100})).sort((a,b)=>a.month-b.month),
+      bySalesperson:Object.entries(allS).map(([n,t])=>({name:n,total:Math.round(t*100)/100})).sort((a,b)=>b.total-a.total),
+      topCustomers:Object.entries(allC).map(([n,t])=>({name:n,total:Math.round(t*100)/100})).sort((a,b)=>b.total-a.total),
+    };
     if (status) status.style.display = 'none';
     render();
     console.log('✅ Loaded from Google Sheets');
