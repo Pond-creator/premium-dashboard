@@ -83,6 +83,32 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
 .page-btn:disabled{opacity:.35;cursor:not-allowed}
 .page-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .footer{text-align:center;padding:16px;color:var(--dim);font-size:10px;font-family:'IBM Plex Mono',monospace}
+
+/* ── MOBILE RESPONSIVE ── */
+@media(max-width:768px){
+  .header{padding:12px 16px;flex-wrap:wrap;gap:8px}
+  .brand h1{font-size:14px}
+  .header-controls{width:100%;overflow-x:auto;padding-bottom:2px}
+  .year-tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .ytab{padding:5px 10px;font-size:10px;white-space:nowrap}
+  .main{padding:12px 12px 48px}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)!important;gap:8px}
+  .kpi .val{font-size:16px}
+  .row-3-2,.row-2,.row{grid-template-columns:1fr!important}
+  .view-tabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+  .vtab{white-space:nowrap;padding:6px 12px;font-size:11px}
+  .card{padding:14px 14px}
+  .barchart{gap:2px}
+  .bval{font-size:7px}
+  .blabel{font-size:8px}
+  .tbl th,.tbl td{padding:6px 6px;font-size:11px}
+  .yramt{min-width:60px;font-size:10px}
+  .donut-wrap{flex-direction:column;align-items:center}
+  .page-controls{flex-direction:column;gap:8px;align-items:flex-start}
+  .page-btns{flex-wrap:wrap;gap:4px}
+  .page-btn{padding:5px 10px;font-size:10px}
+  #load-status{font-size:11px;padding:6px 12px}
+}
 </style>
 </head>
 <body>
