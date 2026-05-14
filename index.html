@@ -257,7 +257,7 @@ function getSalesperson(so) {
   return 'อื่นๆ';
 }
 
-function processRows(rows) {
+function processRows(rows, sheetYear) {
   let grandTotal = 0, grandBefore = 0, orders = 0;
   const monthly = {}, bySale = {}, byCust = {};
   for (const row of rows) {
@@ -269,12 +269,39 @@ function processRows(rows) {
     const so = (row[5] || '').trim();
     // ชื่อลูกค้า — ถ้าไม่มีให้เป็น 'อื่นๆ'
     const custName = (row[3] || '').trim() || 'อื่นๆ';
-    // เดือนจาก Col A (ภาษาไทย) หรือ Col B (วันที่)
-    const mTh = (row[0] || '').trim();
-    const mNum = THAI_MONTHS[mTh] || (()=>{
-      const d = new Date(row[1]);
-      return isNaN(d) ? null : d.getMonth()+1;
-    })();
+    // ดูเดือนจาก Column B (วันที่) เป็นหลัก
+    let mNum = null;
+    const dateStr = (row[1] || '').toString().trim();
+    if (dateStr) {
+      // แปลงวันที่ทั้ง ค.ศ. และ พ.ศ. → d/m/y
+      let d = null;
+      // รูปแบบ: dd/mm/yyyy หรือ d/m/yyyy
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        let y = parseInt(parts[2]);
+        const m = parseInt(parts[1]);
+        const day = parseInt(parts[0]);
+        // ถ้าปีเป็น พ.ศ. (> 2500) → แปลงเป็น ค.ศ.
+        if (y > 2400) y = y - 543;
+        d = new Date(y, m - 1, day);
+      } else {
+        d = new Date(dateStr);
+      }
+      if (d && !isNaN(d)) {
+        const yr4 = d.getFullYear();
+        // ถ้าวันที่เป็นปีอื่น → ข้ามเดือน แต่ยังนับยอด
+        if (sheetYear && yr4.toString() !== sheetYear.toString()) {
+          mNum = null;
+        } else {
+          mNum = d.getMonth() + 1;
+        }
+      }
+    }
+    // ถ้า B ไม่มีวันที่ → ดูจาก Column A (ชื่อเดือนภาษาไทย)
+    if (!mNum) {
+      const mTh = (row[0] || '').trim();
+      mNum = THAI_MONTHS[mTh] || null;
+    }
     if (mNum) monthly[mNum] = (monthly[mNum] || 0) + total;
     // เซลล์จาก SO
     const sp = getSalesperson(so);
@@ -325,7 +352,7 @@ async function loadFromSheets() {
         const text = await res.text();
         if (!text || text.includes('errors')) continue;
         const rows = parseCSV(text);
-        const processed = processRows(rows);
+        const processed = processRows(rows, yr);
         if (processed.orderCount === 0) continue; // Sheet ว่าง → ข้ามไป
         result[yr] = processed;
         foundYears.push(yr);
