@@ -260,15 +260,23 @@ function getSalesperson(so) {
 function processRows(rows, sheetYear) {
   let grandTotal = 0, grandBefore = 0, orders = 0;
   const monthly = {}, bySale = {}, byCust = {};
+  let pendingCustName = ''; // จำชื่อลูกค้าจากแถวที่ไม่มียอด
   for (const row of rows) {
     if (!row || row.length < 10) continue;
     const cleanNum = v => parseFloat((v || '').toString().replace(/,/g,'').trim()) || 0;
     const total = cleanNum(row[9]); // Column J — โฟกัสนี้เป็นหลัก
-    if (total <= 0) continue;       // ข้ามเฉพาะแถวที่ยอด J = 0
+    const custRaw = (row[3] || '').trim();
+    // ถ้ามีชื่อลูกค้าแต่ไม่มียอด → จำชื่อไว้ใช้แถวถัดไป
+    if (custRaw && total <= 0) {
+      pendingCustName = custRaw;
+      continue;
+    }
+    if (total <= 0) continue;
     const value = cleanNum(row[7]); // Column H
     const so = (row[5] || '').trim();
-    // ชื่อลูกค้า — ถ้าไม่มีให้เป็น 'อื่นๆ'
-    const custName = (row[3] || '').trim() || 'อื่นๆ';
+    // ชื่อลูกค้า — ใช้แถวนี้ก่อน ถ้าว่างใช้ที่จำไว้ ถ้าไม่มีเลยเป็น 'อื่นๆ'
+    const custName = custRaw || pendingCustName || 'อื่นๆ';
+    pendingCustName = ''; // reset หลังใช้แล้ว
     // ดูเดือนจาก Column B (วันที่) เป็นหลัก
     let mNum = null;
     const dateStr = (row[1] || '').toString().trim();
