@@ -261,26 +261,29 @@ function processRows(rows) {
   let grandTotal = 0, grandBefore = 0, orders = 0;
   const monthly = {}, bySale = {}, byCust = {};
   for (const row of rows) {
-    if (!row || row.length < 8) continue;
-    const custName = (row[3] || '').trim();
-    const so = (row[5] || '').trim();
-    // Clean number: remove commas, spaces, handle empty
+    if (!row || row.length < 10) continue;
     const cleanNum = v => parseFloat((v || '').toString().replace(/,/g,'').trim()) || 0;
-    const total = cleanNum(row[9]);
-    const value = cleanNum(row[7]);
-    // Skip: no customer name or zero/negative total only
-    if (!custName || custName === '' || total <= 0) continue;
-    // Month from col A (Thai) or col B (date string)
+    const total = cleanNum(row[9]); // Column J — โฟกัสนี้เป็นหลัก
+    if (total <= 0) continue;       // ข้ามเฉพาะแถวที่ยอด J = 0
+    const value = cleanNum(row[7]); // Column H
+    const so = (row[5] || '').trim();
+    // ชื่อลูกค้า — ถ้าไม่มีให้เป็น 'อื่นๆ'
+    const custName = (row[3] || '').trim() || 'อื่นๆ';
+    // เดือนจาก Col A (ภาษาไทย) หรือ Col B (วันที่)
     const mTh = (row[0] || '').trim();
     const mNum = THAI_MONTHS[mTh] || (()=>{
       const d = new Date(row[1]);
       return isNaN(d) ? null : d.getMonth()+1;
     })();
     if (mNum) monthly[mNum] = (monthly[mNum] || 0) + total;
+    // เซลล์จาก SO
     const sp = getSalesperson(so);
     bySale[sp] = (bySale[sp] || 0) + total;
+    // ลูกค้า
     byCust[custName] = (byCust[custName] || 0) + total;
-    grandTotal += total; grandBefore += value; orders++;
+    grandTotal += total;
+    grandBefore += value;
+    orders++;
   }
   return {
     grandTotal: Math.round(grandTotal * 100) / 100,
