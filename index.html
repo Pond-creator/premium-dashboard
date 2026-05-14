@@ -300,11 +300,11 @@ async function detectAndLoadSheets() {
   for (let y = currentYear; y >= 2021; y--) autoYears.push(String(y));
   YEARS = autoYears;
 
-  // อัพเดท Year Tabs อัตโนมัติ
+  // อัพเดท Year Tabs อัตโนมัติ และ reset curYear ให้ตรงกับปุ่มที่ active
+  curYear = 'all'; // ← สำคัญมาก: ต้องตรงกับปุ่มที่ active ด้านล่าง
   const tabsEl = document.getElementById('year-tabs');
   tabsEl.innerHTML = '<button class="ytab active" data-y="all">ทั้งหมด</button>' +
     autoYears.map(y => `<button class="ytab" data-y="${y}">${y}</button>`).join('');
-  // Year tabs use the global event listener below
   return loadFromSheets();
 }
 
