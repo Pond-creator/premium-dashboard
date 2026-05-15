@@ -94,6 +94,8 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
   background: var(--accent) !important;
   color: #fff !important;
 }
+.cust-filter-btn.active{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
+.cust-filter-btn:hover:not(.active){color:var(--text)!important;background:var(--s3)!important}
 /* ── MOBILE RESPONSIVE ── */
 @media(max-width:768px){
   .header{padding:12px 16px;flex-wrap:wrap;gap:8px}
@@ -195,6 +197,17 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
   <div class="vpage" id="page-customers">
     <div class="card">
       <div class="card-title"><span class="pip" style="background:var(--amber)"></span>รายชื่อลูกค้าทั้งหมด <span id="cust-count-lbl" style="color:var(--accent);margin-left:4px"></span></div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+        <input id="cust-search" type="text" placeholder="🔍 ค้นหาชื่อลูกค้า..." oninput="custSearch()"
+          style="flex:1;min-width:200px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--s2);color:var(--text);font-size:12px;font-family:'Sarabun',sans-serif;outline:none">
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          <button class="cust-filter-btn active" data-sale="all" onclick="custFilter('all')" style="padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--accent);color:#fff;font-size:11px;font-weight:600;cursor:pointer">ทั้งหมด</button>
+          <button class="cust-filter-btn" data-sale="แป๊ะ" onclick="custFilter('แป๊ะ')" style="padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--s2);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer">แป๊ะ</button>
+          <button class="cust-filter-btn" data-sale="จุ๋ม" onclick="custFilter('จุ๋ม')" style="padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--s2);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer">จุ๋ม</button>
+          <button class="cust-filter-btn" data-sale="หญิง" onclick="custFilter('หญิง')" style="padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--s2);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer">หญิง</button>
+          <button class="cust-filter-btn" data-sale="เป้ง" onclick="custFilter('เป้ง')" style="padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--s2);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer">เป้ง</button>
+        </div>
+      </div>
       <div class="scroll-tbl" id="cust-full-tbl" style="max-height:none"></div>
       <div class="page-controls">
         <div class="page-info" id="page-info"></div>
@@ -259,7 +272,7 @@ function getSalesperson(so) {
 
 function processRows(rows, sheetYear) {
   let grandTotal = 0, grandBefore = 0, orders = 0;
-  const monthly = {}, bySale = {}, byCust = {};
+  const monthly = {}, bySale = {}, byCust = {}, custSale = {}, custSO = {};
   let pendingCustName = ''; // จำชื่อลูกค้าจากแถวที่ไม่มียอด
   for (const row of rows) {
     if (!row || row.length < 10) continue;
@@ -316,6 +329,13 @@ function processRows(rows, sheetYear) {
     bySale[sp] = (bySale[sp] || 0) + total;
     // ลูกค้า
     byCust[custName] = (byCust[custName] || 0) + total;
+    // track เซลล์ของลูกค้า
+    if (!custSale[custName]) custSale[custName] = sp;
+    // track SO list
+    if (so) {
+      if (!custSO[custName]) custSO[custName] = [];
+      custSO[custName].push(so);
+    }
     grandTotal += total;
     grandBefore += value;
     orders++;
@@ -327,7 +347,7 @@ function processRows(rows, sheetYear) {
     customerCount: Object.keys(byCust).length,
     monthly: Object.entries(monthly).map(([m,t]) => ({month:+m, total:Math.round(t*100)/100})).sort((a,b)=>a.month-b.month),
     bySalesperson: Object.entries(bySale).map(([n,t]) => ({name:n, total:Math.round(t*100)/100})).sort((a,b)=>b.total-a.total),
-    topCustomers: Object.entries(byCust).map(([n,t]) => ({name:n, total:Math.round(t*100)/100})).sort((a,b)=>b.total-a.total),
+    topCustomers: Object.entries(byCust).map(([n,t]) => ({name:n, total:Math.round(t*100)/100, sale:custSale[n]||'', soList:custSO[n]||[]})).sort((a,b)=>b.total-a.total),
   };
 }
 
@@ -457,43 +477,92 @@ function renderCustTable(el,customers,topN){
   el.innerHTML=`<table class="tbl"><thead><tr><th>#</th><th>ชื่อลูกค้า</th><th class="r">ยอดรวม (บาท)</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-function renderCustPaged(customers,page){
-  const total=customers.length;
-  const totalPages=Math.ceil(total/PAGE_SIZE);
-  const start=page*PAGE_SIZE;
-  const slice=customers.slice(start,start+PAGE_SIZE);
-  const rows=slice.map((c,i)=>{
-    const rank=start+i;
-    return`<tr><td class="rank ${rank===0?'gold':rank===1?'silver':rank===2?'bronze':''}">${medals[rank]||'#'+(rank+1)}</td><td style="font-size:11px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.name}">${c.name}</td><td class="amt r">${fmtFull(c.total)}</td></tr>`;
-  }).join('');
-  document.getElementById('cust-full-tbl').innerHTML=`<table class="tbl"><thead><tr><th>#</th><th>ชื่อลูกค้า</th><th class="r">ยอดรวม (บาท)</th></tr></thead><tbody>${rows}</tbody></table>`;
-  document.getElementById('cust-count-lbl').textContent=`(${total.toLocaleString()} ราย)`;
-  document.getElementById('page-info').textContent=`แสดง ${start+1}–${Math.min(start+PAGE_SIZE,total)} จาก ${total.toLocaleString()} ราย`;
-  // Build page buttons (show max 7 pages around current)
-  const btns=document.getElementById('page-btns');
-  let btnHTML='';
-  btnHTML+=`<button class="page-btn" onclick="changePage(${page-1})" ${page===0?'disabled':''}>◀ ก่อนหน้า</button>`;
-  const range=[];
-  for(let p=0;p<totalPages;p++){
-    if(p===0||p===totalPages-1||Math.abs(p-page)<=2)range.push(p);
-    else if(range[range.length-1]!=='...') range.push('...');
+let custSearchTerm = '';
+let custFilterSale = 'all';
+
+function getFilteredCustomers() {
+  const d = getD(curYear);
+  let custs = d.topCustomers || [];
+  if (custSearchTerm) {
+    const q = custSearchTerm.toLowerCase();
+    custs = custs.filter(c => c.name.toLowerCase().includes(q));
   }
-  range.forEach(p=>{
-    if(p==='...')btnHTML+=`<button class="page-btn" disabled>…</button>`;
-    else btnHTML+=`<button class="page-btn ${p===page?'active':''}" onclick="changePage(${p})">${p+1}</button>`;
-  });
-  btnHTML+=`<button class="page-btn" onclick="changePage(${page+1})" ${page===totalPages-1?'disabled':''}>ถัดไป ▶</button>`;
-  btns.innerHTML=btnHTML;
+  if (custFilterSale !== 'all') {
+    custs = custs.filter(c => c.sale === custFilterSale);
+  }
+  return custs;
 }
 
-window.changePage=function(p){
-  const d=getD(curYear);
-  const cust=d.topCustomers;
-  const totalPages=Math.ceil(cust.length/PAGE_SIZE);
-  if(p<0||p>=totalPages)return;
-  custPage=p;
-  renderCustPaged(cust,custPage);
-  document.getElementById('cust-full-tbl').parentElement.scrollTop=0;
+function renderCustPaged(customers, page) {
+  const showSO = curYear !== 'all'; // แสดง SO เฉพาะตอนกรองปีเดียว
+  const total = customers.length;
+  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+  const start = page * PAGE_SIZE;
+  const slice = customers.slice(start, start + PAGE_SIZE);
+  const rows = slice.map((c, i) => {
+    const rank = start + i;
+    const medal = rank === 0 ? 'gold' : rank === 1 ? 'silver' : rank === 2 ? 'bronze' : '';
+    const rankLabel = medals[rank] || '#' + (rank + 1);
+    const saleColor = SALE_COLORS[c.sale] || 'var(--muted)';
+    const saleTag = c.sale ? `<span style="font-size:10px;color:${saleColor};font-weight:700">${c.sale}</span>` : '';
+    let soCell = '';
+    if (showSO && c.soList && c.soList.length > 0) {
+      const soText = c.soList.join(', ');
+      soCell = `<td style="font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${soText}">${soText}</td>`;
+    } else if (showSO) {
+      soCell = `<td></td>`;
+    }
+    const countCell = showSO ? `<td class="r" style="font-size:11px;color:var(--accent)">${c.soList ? c.soList.length : 0}</td>` : '';
+    return `<tr>
+      <td class="rank ${medal}">${rankLabel}</td>
+      <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.name}">${c.name}<br>${saleTag}</td>
+      ${showSO ? soCell : ''}
+      ${showSO ? countCell : ''}
+      <td class="amt r">${fmtFull(c.total)}</td>
+    </tr>`;
+  }).join('');
+
+  const soHeader = showSO ? '<th>SO</th><th class="r">ครั้ง</th>' : '';
+  document.getElementById('cust-full-tbl').innerHTML = `<table class="tbl"><thead><tr><th>#</th><th>ชื่อลูกค้า</th>${soHeader}<th class="r">ยอดรวม (บาท)</th></tr></thead><tbody>${rows}</tbody></table>`;
+  document.getElementById('cust-count-lbl').textContent = `(${total.toLocaleString()} ราย)`;
+  document.getElementById('page-info').textContent = `แสดง ${start + 1}–${Math.min(start + PAGE_SIZE, total)} จาก ${total.toLocaleString()} ราย`;
+
+  const btns = document.getElementById('page-btns');
+  let btnHTML = `<button class="page-btn" onclick="changePage(${page - 1})" ${page === 0 ? 'disabled' : ''}>◀ ก่อนหน้า</button>`;
+  const range = [];
+  for (let p = 0; p < totalPages; p++) {
+    if (p === 0 || p === totalPages - 1 || Math.abs(p - page) <= 2) range.push(p);
+    else if (range[range.length - 1] !== '...') range.push('...');
+  }
+  range.forEach(p => {
+    if (p === '...') btnHTML += `<button class="page-btn" disabled>…</button>`;
+    else btnHTML += `<button class="page-btn ${p === page ? 'active' : ''}" onclick="changePage(${p})">${p + 1}</button>`;
+  });
+  btnHTML += `<button class="page-btn" onclick="changePage(${page + 1})" ${page === totalPages - 1 ? 'disabled' : ''}>ถัดไป ▶</button>`;
+  btns.innerHTML = btnHTML;
+}
+
+window.changePage = function(p) {
+  const custs = getFilteredCustomers();
+  const totalPages = Math.ceil(custs.length / PAGE_SIZE) || 1;
+  if (p < 0 || p >= totalPages) return;
+  custPage = p;
+  renderCustPaged(custs, custPage);
+  document.getElementById('cust-full-tbl').parentElement.scrollTop = 0;
+};
+
+window.custSearch = function() {
+  custSearchTerm = document.getElementById('cust-search').value.trim();
+  custPage = 0;
+  renderCustPaged(getFilteredCustomers(), 0);
+};
+
+window.custFilter = function(sale) {
+  custFilterSale = sale;
+  custPage = 0;
+  // update filter buttons
+  document.querySelectorAll('.cust-filter-btn').forEach(b => b.classList.toggle('active', b.dataset.sale === sale));
+  renderCustPaged(getFilteredCustomers(), 0);
 };
 
 function renderMonthlyTable(el,monthly){
@@ -558,9 +627,14 @@ function render(){
   renderSaleBars(document.getElementById('sale-bars-full'),d.bySalesperson);
   renderDonut(document.getElementById('donut-sale-full'),d.bySalesperson,160);
 
-  // Customers - reset page
-  custPage=0;
-  renderCustPaged(d.topCustomers,0);
+  // Customers - reset search/filter/page
+  custPage = 0;
+  custSearchTerm = '';
+  custFilterSale = 'all';
+  const searchEl = document.getElementById('cust-search');
+  if (searchEl) searchEl.value = '';
+  document.querySelectorAll('.cust-filter-btn').forEach(b => b.classList.toggle('active', b.dataset.sale === 'all'));
+  renderCustPaged(getFilteredCustomers(), 0);
 }
 
 // Event delegation บน document — ปุ่มปีทำงานถูกต้องแม้ innerHTML ถูก replace
