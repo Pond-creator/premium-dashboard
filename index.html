@@ -94,8 +94,17 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
   background: var(--accent) !important;
   color: #fff !important;
 }
+/* หน้ารายเดือน — ปุ่ม "ทั้งหมด" จางลง กดไม่ได้ */
+.page-monthly-active .ytab[data-y="all"] {
+  opacity: 0.25;
+  pointer-events: none;
+  cursor: not-allowed;
+}
 .cust-filter-btn.active{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
 .cust-filter-btn:hover:not(.active){color:var(--text)!important;background:var(--s3)!important}
+.month-tab{transition:all .2s}
+.month-tab.active{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
+.month-tab:hover:not(.active){color:var(--text)!important;background:var(--s3)!important}
 /* ── MOBILE RESPONSIVE ── */
 @media(max-width:768px){
   .header{padding:12px 16px;flex-wrap:wrap;gap:8px}
@@ -179,9 +188,25 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
 
   <!-- MONTHLY -->
   <div class="vpage" id="page-monthly">
-    <div class="kpi-grid" id="kpi-monthly"></div>
-    <div class="card" style="margin-bottom:14px"><div class="card-title"><span class="pip"></span>ยอดขายรายเดือน</div><div class="barchart" style="height:200px" id="bar-monthly-detail"></div></div>
-    <div class="card"><div class="card-title"><span class="pip"></span>ตารางรายเดือน</div><div class="scroll-tbl" id="monthly-table"></div></div>
+    <!-- แจ้งเตือนถ้ายังไม่ได้เลือกปี -->
+    <div id="monthly-select-year" style="display:none;text-align:center;padding:60px 20px">
+      <div style="font-size:40px;margin-bottom:16px">📅</div>
+      <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px">กรุณาเลือกปีก่อน</div>
+      <div style="font-size:13px;color:var(--muted)">หน้ารายเดือนแสดงผลเฉพาะปีที่เลือก</div>
+    </div>
+    <!-- เนื้อหาหน้ารายเดือน -->
+    <div id="monthly-content">
+      <div class="kpi-grid" id="kpi-monthly"></div>
+      <!-- Month filter tabs -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px" id="month-tabs">
+        <button class="month-tab active" data-m="all" onclick="selectMonth('all')" style="padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:var(--accent);color:#fff;font-size:11px;font-weight:600;cursor:pointer;font-family:'IBM Plex Mono',monospace">ทั้งปี</button>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title"><span class="pip"></span>ยอดขายรายเดือน <span id="monthly-title-label" style="color:var(--accent);margin-left:6px;font-size:10px"></span></div>
+        <div class="barchart" style="height:200px" id="bar-monthly-detail"></div>
+      </div>
+      <div class="card"><div class="card-title"><span class="pip"></span>ตารางรายเดือน</div><div class="scroll-tbl" id="monthly-table"></div></div>
+    </div>
   </div>
 
   <!-- SALESPERSON -->
@@ -596,6 +621,131 @@ function renderSaleCompare(){
   document.getElementById('sale-compare-tbl').innerHTML=`<table class="tbl"><thead><tr><th>เซลล์</th>${years.map(y=>`<th class="r">${y}</th>`).join('')}<th class="r">รวม 6 ปี</th></tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
 }
 
+let curMonth = 'all'; // เดือนที่เลือกในหน้ารายเดือน
+
+function buildMonthTabs(monthly) {
+  const tabsEl = document.getElementById('month-tabs');
+  if (!tabsEl) return;
+  let html = `<button class="month-tab ${curMonth==='all'?'active':''}" data-m="all" onclick="selectMonth('all')" style="padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:${curMonth==='all'?'var(--accent)':'var(--s2)'};color:${curMonth==='all'?'#fff':'var(--muted)'};font-size:11px;font-weight:600;cursor:pointer;font-family:'IBM Plex Mono',monospace">ทั้งปี</button>`;
+  monthly.forEach(m => {
+    const active = curMonth === m.month;
+    html += `<button class="month-tab ${active?'active':''}" data-m="${m.month}" onclick="selectMonth(${m.month})" style="padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:${active?'var(--accent)':'var(--s2)'};color:${active?'#fff':'var(--muted)'};font-size:11px;font-weight:600;cursor:pointer;font-family:'IBM Plex Mono',monospace">${THAI_M[m.month]}</button>`;
+  });
+  tabsEl.innerHTML = html;
+}
+
+window.selectMonth = function(m) {
+  curMonth = m;
+  renderMonthlySection();
+};
+
+function renderMonthlySection() {
+  const d = getD(curYear);
+  const prevYear = curYear !== 'all' ? String(+curYear - 1) : null;
+  const prevD = prevYear && DB[prevYear] ? DB[prevYear] : null;
+
+  // ถ้าเลือก "ทั้งหมด" → บอกให้เลือกปี
+  const selectYearEl = document.getElementById('monthly-select-year');
+  const contentEl = document.getElementById('monthly-content');
+  if (curYear === 'all') {
+    if (selectYearEl) selectYearEl.style.display = 'block';
+    if (contentEl) contentEl.style.display = 'none';
+    return;
+  }
+  if (selectYearEl) selectYearEl.style.display = 'none';
+  if (contentEl) contentEl.style.display = 'block';
+
+  // Build month tabs
+  buildMonthTabs(d.monthly);
+
+  if (curMonth === 'all') {
+    // แสดงทั้งปี — KPI เทียบช่วงเดือนเดียวกันของปีก่อน (YTD)
+    document.getElementById('monthly-title-label').textContent = '— กดเลือกเดือนเพื่อดู M-o-M';
+
+    // คำนวณ YTD: เทียบเฉพาะเดือนที่มีข้อมูลในปีนี้
+    const maxMonth = d.monthly.length ? Math.max(...d.monthly.map(m => m.month)) : 0;
+    let prevYTD = null;
+    if (prevD && maxMonth > 0) {
+      const prevSamePeriod = prevD.monthly.filter(m => m.month <= maxMonth);
+      if (prevSamePeriod.length) {
+        prevYTD = { grandTotal: prevSamePeriod.reduce((s,m) => s+m.total, 0) };
+      }
+    }
+    // สร้าง prev object สำหรับ KPI ที่เทียบ YTD
+    const prevForKPI = prevYTD || prevD;
+    renderKPI(document.getElementById('kpi-monthly'), d, prevForKPI);
+
+    // เพิ่ม label บอกว่าเทียบช่วงไหน
+    if (prevYTD && maxMonth > 0) {
+      const kpiEl = document.getElementById('kpi-monthly');
+      const firstKpi = kpiEl.querySelector('.kpi:first-child .chg, .kpi:first-child .sub');
+      if (firstKpi && firstKpi.classList.contains('chg')) {
+        firstKpi.title = `เทียบ ${THAI_M[1]}–${THAI_M[maxMonth]} ${prevYear} (ช่วงเดียวกัน)`;
+        firstKpi.textContent += ` (vs ช่วงเดียวกันปีก่อน)`;
+      }
+    }
+
+    renderBar(document.getElementById('bar-monthly-detail'), d.monthly, 200);
+    renderMonthlyTable(document.getElementById('monthly-table'), d.monthly);
+  } else {
+    // แสดงเดือนเดียว + เทียบเดือนก่อน
+    const mData = d.monthly.find(x => x.month === curMonth);
+    const prevMData = d.monthly.find(x => x.month === curMonth - 1);
+    const mName = THAI_M[curMonth];
+    document.getElementById('monthly-title-label').textContent = `— ${mName}`;
+
+    // KPI เดือนนี้ vs เดือนก่อน
+    const kpiEl = document.getElementById('kpi-monthly');
+    if (mData) {
+      const total = mData.total;
+      const prevTotal = prevMData ? prevMData.total : null;
+      const chg = prevTotal ? ((total / prevTotal - 1) * 100).toFixed(1) : null;
+      const grandBefore = Math.round(total / 1.07 * 100) / 100;
+      const vat = Math.round((total - grandBefore) * 100) / 100;
+      kpiEl.style.gridTemplateColumns = 'repeat(3,1fr)';
+      kpiEl.innerHTML = `
+        <div class="kpi" style="--c:var(--accent)">
+          <div class="lbl">ยอดขาย ${mName} (รวม VAT)</div>
+          <div class="val">${fmt(total)}<sup> บาท</sup></div>
+          ${chg !== null ? `<div class="chg ${+chg >= 0 ? 'up' : 'down'}">${+chg >= 0 ? '▲' : '▼'} ${Math.abs(chg)}% vs ${THAI_M[curMonth - 1]}</div>` : '<div class="sub">ไม่มีข้อมูลเดือนก่อน</div>'}
+        </div>
+        <div class="kpi" style="--c:var(--green)">
+          <div class="lbl">มูลค่าก่อน VAT</div>
+          <div class="val">${fmt(grandBefore)}<sup> บาท</sup></div>
+          <div class="sub">VAT: ${fmt(vat)} บ.</div>
+        </div>
+        <div class="kpi" style="--c:var(--amber)">
+          <div class="lbl">เดือนก่อนหน้า (${prevMData ? THAI_M[curMonth - 1] : '-'})</div>
+          <div class="val">${prevTotal ? fmt(prevTotal) : '—'}<sup> บาท</sup></div>
+          <div class="sub">${chg !== null ? `ต่าง ${chg >= 0 ? '+' : ''}${chg}%` : 'ไม่มีข้อมูล'}</div>
+        </div>`;
+    } else {
+      kpiEl.innerHTML = `<div class="kpi"><div class="lbl">${mName}</div><div class="val">ไม่มีข้อมูล</div></div>`;
+    }
+
+    // กราฟแสดงเฉพาะเดือนที่เลือก highlight
+    const barData = d.monthly.map(m => ({...m, highlight: m.month === curMonth}));
+    renderBarHighlight(document.getElementById('bar-monthly-detail'), barData, 200, curMonth);
+
+    // ตารางเดือนเดียว
+    renderMonthlyTable(document.getElementById('monthly-table'), mData ? [mData] : []);
+  }
+}
+
+function renderBarHighlight(el, monthly, h, highlightMonth) {
+  el.style.height = h + 'px';
+  if (!monthly.length) { el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px">ไม่มีข้อมูลรายเดือน</div>'; return; }
+  const max = Math.max(...monthly.map(m => m.total));
+  el.innerHTML = Array.from({length: 12}, (_, i) => i + 1).map(m => {
+    const f = monthly.find(x => x.month === m);
+    if (!f) return `<div class="bwrap"><div class="blabel">${THAI_M[m]}</div></div>`;
+    const hp = Math.max((f.total / max) * (h - 34), 3);
+    const isHL = f.month === highlightMonth;
+    const bg = isHL ? 'linear-gradient(180deg,#f59e0b,#d97706)' : 'linear-gradient(180deg,#2a3a5a,#1e2840)';
+    return `<div class="bwrap" title="${THAI_M[m]}: ${fmtFull(f.total)} บ."><div class="bval" style="${isHL ? 'color:var(--amber)' : ''}">${fmt(f.total)}</div><div class="bbar" style="height:${hp}px;background:${bg}"></div><div class="blabel" style="${isHL ? 'color:var(--amber);font-weight:700' : ''}">${THAI_M[m]}</div></div>`;
+  }).join('');
+}
+
 function render(){
   const d=getD(curYear);
   const prevYear=curYear!=='all'?String(+curYear-1):null;
@@ -613,10 +763,9 @@ function render(){
   renderYCompare(document.getElementById('ycompare-orders'),'orderCount');
   renderSaleCompare();
 
-  // Monthly
-  renderKPI(document.getElementById('kpi-monthly'),d,prev);
-  renderBar(document.getElementById('bar-monthly-detail'),d.monthly,200);
-  renderMonthlyTable(document.getElementById('monthly-table'),d.monthly);
+  // Monthly — reset month selection when year changes
+  curMonth = 'all';
+  renderMonthlySection();
 
   // Salesperson
   const saleKpi=document.getElementById('kpi-sale');
@@ -655,13 +804,27 @@ document.querySelectorAll('.vtab').forEach(btn=>{
     // Toggle year tabs state for compare page
     if(btn.dataset.v==='compare'){
       document.querySelector('.header').classList.add('page-compare-active');
-      // Force curYear to 'all' on compare page
       curYear='all';
       document.querySelectorAll('.ytab').forEach(t=>t.classList.remove('active'));
       document.querySelector('.ytab[data-y="all"]').classList.add('active');
       render();
     } else {
       document.querySelector('.header').classList.remove('page-compare-active');
+    }
+    // หน้ารายเดือน → วิ่งไปปีปัจจุบันอัตโนมัติ + dim ปุ่มทั้งหมด
+    if(btn.dataset.v==='monthly'){
+      document.querySelector('.header').classList.add('page-monthly-active');
+      // ถ้าตอนนี้เลือก 'all' ให้วิ่งไปปีล่าสุดที่มีข้อมูลแทน
+      if(curYear === 'all'){
+        const latestYear = YEARS[0]; // ปีใหม่สุด
+        curYear = latestYear;
+        document.querySelectorAll('.ytab').forEach(t => t.classList.remove('active'));
+        const ytab = document.querySelector(`.ytab[data-y="${latestYear}"]`);
+        if(ytab) ytab.classList.add('active');
+      }
+      renderMonthlySection();
+    } else {
+      document.querySelector('.header').classList.remove('page-monthly-active');
     }
   });
 });
