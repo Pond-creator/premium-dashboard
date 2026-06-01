@@ -196,15 +196,20 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
     </div>
     <!-- เนื้อหาหน้ารายเดือน -->
     <div id="monthly-content">
-      <div class="kpi-grid" id="kpi-monthly"></div>
-      <!-- Month filter tabs -->
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px" id="month-tabs">
-        <button class="month-tab active" data-m="all" onclick="selectMonth('all')" style="padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:var(--accent);color:#fff;font-size:11px;font-weight:600;cursor:pointer;font-family:'IBM Plex Mono',monospace">ทั้งปี</button>
+      <!-- ปุ่มเดือน อยู่บนสุด ก่อน KPI -->
+      <div class="card" style="margin-bottom:14px;padding:12px 16px">
+        <div id="month-tabs" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <button class="month-tab active" data-m="all" onclick="selectMonth('all')">ทั้งปี</button>
+        </div>
       </div>
+      <!-- KPI -->
+      <div class="kpi-grid" id="kpi-monthly" style="margin-bottom:14px"></div>
+      <!-- กราฟ -->
       <div class="card" style="margin-bottom:14px">
-        <div class="card-title"><span class="pip"></span>ยอดขายรายเดือน <span id="monthly-title-label" style="color:var(--accent);margin-left:6px;font-size:10px"></span></div>
+        <div class="card-title"><span class="pip"></span>ยอดขายรายเดือน <span id="monthly-title-label" style="color:var(--muted);margin-left:6px;font-size:10px"></span></div>
         <div class="barchart" style="height:200px" id="bar-monthly-detail"></div>
       </div>
+      <!-- ตาราง -->
       <div class="card"><div class="card-title"><span class="pip"></span>ตารางรายเดือน</div><div class="scroll-tbl" id="monthly-table"></div></div>
     </div>
   </div>
@@ -688,26 +693,31 @@ function renderMonthlySection() {
     renderBar(document.getElementById('bar-monthly-detail'), d.monthly, 200);
     renderMonthlyTable(document.getElementById('monthly-table'), d.monthly);
   } else {
-    // แสดงเดือนเดียว + เทียบเดือนก่อน
+    // เดือนเดียว → เทียบเดือนเดียวกันปีก่อน
     const mData = d.monthly.find(x => x.month === curMonth);
-    const prevMData = d.monthly.find(x => x.month === curMonth - 1);
+    const prevMData = prevD ? prevD.monthly.find(x => x.month === curMonth) : null;
     const mName = THAI_M[curMonth];
     document.getElementById('monthly-title-label').textContent = `— ${mName}`;
 
-    // KPI เดือนนี้ vs เดือนก่อน
     const kpiEl = document.getElementById('kpi-monthly');
+    kpiEl.style.gridTemplateColumns = 'repeat(3,1fr)';
     if (mData) {
       const total = mData.total;
       const prevTotal = prevMData ? prevMData.total : null;
       const chg = prevTotal ? ((total / prevTotal - 1) * 100).toFixed(1) : null;
       const grandBefore = Math.round(total / 1.07 * 100) / 100;
       const vat = Math.round((total - grandBefore) * 100) / 100;
-      kpiEl.style.gridTemplateColumns = 'repeat(3,1fr)';
+      // นับ Order ในเดือนนี้ (ไม่มีใน monthly data โดยตรง ใช้ orderCount ของปี)
+      // นับ order ของเดือนนี้จาก topCustomers ไม่ได้ → ใช้วิธีประมาณจาก monthly proportion
+      const monthOrders = d.orderCount && d.grandTotal ? Math.round((total / d.grandTotal) * d.orderCount) : 0;
+      const prevMonthOrders = prevD && prevD.orderCount && prevD.grandTotal && prevTotal
+        ? Math.round((prevTotal / prevD.grandTotal) * prevD.orderCount) : 0;
       kpiEl.innerHTML = `
         <div class="kpi" style="--c:var(--accent)">
           <div class="lbl">ยอดขาย ${mName} (รวม VAT)</div>
           <div class="val">${fmt(total)}<sup> บาท</sup></div>
-          ${chg !== null ? `<div class="chg ${+chg >= 0 ? 'up' : 'down'}">${+chg >= 0 ? '▲' : '▼'} ${Math.abs(chg)}% vs ${THAI_M[curMonth - 1]}</div>` : '<div class="sub">ไม่มีข้อมูลเดือนก่อน</div>'}
+          ${chg !== null ? `<div class="chg ${+chg>=0?'up':'down'}">${+chg>=0?'▲':'▼'} ${Math.abs(chg)}% vs ${mName} ${prevYear}</div>` : '<div class="sub">ไม่มีข้อมูลปีก่อน</div>'}
+          <div class="sub" style="margin-top:4px">Order ปีนี้: ~${monthOrders.toLocaleString()} ออเดอร์</div>
         </div>
         <div class="kpi" style="--c:var(--green)">
           <div class="lbl">มูลค่าก่อน VAT</div>
@@ -715,17 +725,15 @@ function renderMonthlySection() {
           <div class="sub">VAT: ${fmt(vat)} บ.</div>
         </div>
         <div class="kpi" style="--c:var(--amber)">
-          <div class="lbl">เดือนก่อนหน้า (${prevMData ? THAI_M[curMonth - 1] : '-'})</div>
+          <div class="lbl">${mName} ปีก่อน (${prevYear||'-'})</div>
           <div class="val">${prevTotal ? fmt(prevTotal) : '—'}<sup> บาท</sup></div>
-          <div class="sub">${chg !== null ? `ต่าง ${chg >= 0 ? '+' : ''}${chg}%` : 'ไม่มีข้อมูล'}</div>
+          <div class="sub" style="margin-top:4px">${prevMonthOrders ? `Order ปีก่อน: ~${prevMonthOrders.toLocaleString()} ออเดอร์` : 'ไม่มีข้อมูล'}</div>
         </div>`;
     } else {
-      kpiEl.innerHTML = `<div class="kpi"><div class="lbl">${mName}</div><div class="val">ไม่มีข้อมูล</div></div>`;
+      kpiEl.innerHTML = `<div class="kpi"><div class="lbl">${mName}</div><div class="val" style="color:var(--muted)">ไม่มีข้อมูล</div></div>`;
     }
 
-    // กราฟแสดงเฉพาะเดือนที่เลือก highlight
-    const barData = d.monthly.map(m => ({...m, highlight: m.month === curMonth}));
-    renderBarHighlight(document.getElementById('bar-monthly-detail'), barData, 200, curMonth);
+    renderBarHighlight(document.getElementById('bar-monthly-detail'), d.monthly, 200, curMonth);
 
     // ตารางเดือนเดียว
     renderMonthlyTable(document.getElementById('monthly-table'), mData ? [mData] : []);
