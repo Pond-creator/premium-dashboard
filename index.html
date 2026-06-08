@@ -626,7 +626,9 @@ function renderSaleCompare(){
   document.getElementById('sale-compare-tbl').innerHTML=`<table class="tbl"><thead><tr><th>เซลล์</th>${years.map(y=>`<th class="r">${y}</th>`).join('')}<th class="r">รวม 6 ปี</th></tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
 }
 
-let curMonth = 'all'; // เดือนที่เลือกในหน้ารายเดือน
+let curMonth = 'all';
+
+ // เดือนที่เลือกในหน้ารายเดือน
 
 function buildMonthTabs(monthly) {
   const tabsEl = document.getElementById('month-tabs');
@@ -680,13 +682,14 @@ function renderMonthlySection() {
     const prevForKPI = prevYTD || prevD;
     renderKPI(document.getElementById('kpi-monthly'), d, prevForKPI);
 
-    // เพิ่ม label บอกว่าเทียบช่วงไหน
+    // เพิ่มยอดปีก่อนใต้ KPI แรก
     if (prevYTD && maxMonth > 0) {
       const kpiEl = document.getElementById('kpi-monthly');
-      const firstKpi = kpiEl.querySelector('.kpi:first-child .chg, .kpi:first-child .sub');
-      if (firstKpi && firstKpi.classList.contains('chg')) {
-        firstKpi.title = `เทียบ ${THAI_M[1]}–${THAI_M[maxMonth]} ${prevYear} (ช่วงเดียวกัน)`;
-        firstKpi.textContent += ` (vs ช่วงเดียวกันปีก่อน)`;
+      const firstKpi = kpiEl.querySelector('.kpi:first-child');
+      if (firstKpi) {
+        const prevTotal = prevYTD.grandTotal;
+        const label = `${THAI_M[1]}–${THAI_M[maxMonth]} ${prevYear}`;
+        firstKpi.innerHTML += `<div class="sub" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">ปีก่อน (${label}): <span style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-weight:600">${fmt(prevTotal)} บ.</span></div>`;
       }
     }
 
