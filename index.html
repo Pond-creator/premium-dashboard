@@ -221,7 +221,7 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
       <div class="card"><div class="card-title"><span class="pip" style="background:var(--green)"></span>ยอดขายแต่ละเซลล์</div><div class="sale-list" id="sale-bars-full"></div></div>
       <div class="card" style="--c:var(--green)"><div class="card-title"><span class="pip" style="background:var(--green)"></span>สัดส่วน (Donut)</div><div class="donut-wrap" id="donut-sale-full"></div></div>
     </div>
-    <div class="card" style="margin-top:14px;--c:var(--green)"><div class="card-title"><span class="pip" style="background:var(--green)"></span>ยอดขายเซลล์ รายเดือน</div><div class="scroll-tbl" id="sale-monthly-tbl"></div></div>
+    <div class="card" style="margin-top:14px;--c:var(--green)"><div class="card-title"><span class="pip" style="background:var(--green)"></span>ยอดขายเซลล์ รายเดือน</div><div style="overflow-x:auto" id="sale-monthly-tbl"></div></div>
   </div>
 
   <!-- CUSTOMERS -->
@@ -512,7 +512,10 @@ function renderDonut(el,bySalesperson,size){
 function renderSaleBars(el,bySalesperson){
   const data=bySalesperson.filter(s=>s.name!=='อื่นๆ');
   const max=data.length?Math.max(...data.map(s=>s.total)):1;
-  el.innerHTML=data.map(s=>`<div class="sale-item"><div class="sale-hdr"><span class="sale-name">${s.name}</span><span class="sale-amt">${fmt(s.total)} บ.</span></div><div class="sale-track"><div class="sale-fill" style="width:${(s.total/max)*100}%;background:${SALE_COLORS[s.name]||'#5a6a88'}"></div></div></div>`).join('');
+  const grand=data.reduce((a,s)=>a+s.total,0);
+  const bars=data.map(s=>`<div class="sale-item"><div class="sale-hdr"><span class="sale-name">${s.name}</span><span class="sale-amt">${fmt(s.total)} บ.</span></div><div class="sale-track"><div class="sale-fill" style="width:${(s.total/max)*100}%;background:${SALE_COLORS[s.name]||'#5a6a88'}"></div></div></div>`).join('');
+  const totalRow=`<div class="sale-item" style="margin-top:6px;padding-top:10px;border-top:1px solid var(--border)"><div class="sale-hdr"><span class="sale-name" style="font-weight:700;color:var(--text)">ยอดรวมทั้งหมด</span><span class="sale-amt" style="font-size:14px;color:#fff">${fmtFull(grand)} บ.</span></div></div>`;
+  el.innerHTML=bars+totalRow;
 }
 
 function renderCustTable(el,customers,topN){
