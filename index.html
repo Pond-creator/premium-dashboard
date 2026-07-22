@@ -617,13 +617,21 @@ function renderMonthlyTable(el,monthly){
   el.innerHTML=`<table class="tbl"><thead><tr><th>เดือน</th><th class="r">ยอดขาย (บาท)</th><th class="r">%</th></tr></thead><tbody>${monthly.map(m=>`<tr><td style="font-family:'IBM Plex Mono',monospace">${THAI_M[m.month]}</td><td class="amt r">${fmtFull(m.total)}</td><td class="r" style="color:var(--muted);font-size:11px">${((m.total/total)*100).toFixed(1)}%</td></tr>`).join('')}</tbody><tfoot><tr><td>รวม</td><td class="amt r">${fmtFull(total)}</td><td></td></tr></tfoot></table>`;
 }
 
-function renderSaleMonthly(el,d){
+function renderSaleMonthly(el,d,year){
   const sm=d.saleMonthly||{};
   const people=d.bySalesperson.filter(s=>s.name!=='อื่นๆ').map(s=>s.name);
   const monthsSet=new Set();
   Object.values(sm).forEach(mm=>Object.keys(mm).forEach(m=>monthsSet.add(+m)));
   const months=[...monthsSet].sort((a,b)=>a-b);
   if(!people.length||!months.length){el.innerHTML='<div style="color:var(--muted);padding:20px">ยังไม่มีข้อมูลรายเดือน (รอโหลดจาก Google Sheets)</div>';return;}
+  // เทียบปีก่อน "ช่วงเดือนเดียวกัน" (เฉพาะตอนเลือกปีเดียว ไม่ใช่ 'ทั้งหมด')
+  const prevY=(year&&year!=='all')?String(+year-1):null;
+  const prevSM=(prevY&&DB[prevY])?(DB[prevY].saleMonthly||{}):null;
+  const badge=(cur,prev)=>{
+    if(!prevSM||!prev||prev<=0) return '';
+    const p=(cur-prev)/prev*100, up=p>=0;
+    return `<div style="font-size:9px;font-weight:600;margin-top:2px;color:${up?'var(--green)':'var(--red)'}">${up?'▲':'▼'} ${Math.abs(p).toFixed(0)}%</div>`;
+  };
   const head=`<tr><th>เดือน</th>${people.map(p=>`<th class="r" style="color:${SALE_COLORS[p]||'var(--text)'}">${p}</th>`).join('')}<th class="r">รวม</th></tr>`;
   const body=months.map(m=>{
     const cells=people.map(p=>{const v=(sm[p]&&sm[p][m])||0;return`<td class="r" style="font-family:'IBM Plex Mono',monospace;font-size:11px">${v?fmt(v):'—'}</td>`;}).join('');
@@ -632,8 +640,12 @@ function renderSaleMonthly(el,d){
   }).join('');
   const colTotals=people.map(p=>Object.values(sm[p]||{}).reduce((a,b)=>a+b,0));
   const grand=colTotals.reduce((a,b)=>a+b,0);
-  const foot=`<tr style="background:var(--s2)"><td style="font-weight:700;color:var(--text)">รวม</td>${colTotals.map(v=>`<td class="r" style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;color:var(--text)">${fmt(v)}</td>`).join('')}<td class="amt r" style="font-size:13px">${fmt(grand)}</td></tr>`;
-  el.innerHTML=`<table class="tbl"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table>`;
+  // ยอดปีก่อนช่วงเดือนเดียวกัน (ใช้เดือนชุดเดียวกับปีนี้)
+  const colPrev=people.map(p=>prevSM?months.reduce((s,m)=>s+((prevSM[p]&&prevSM[p][m])||0),0):0);
+  const grandPrev=colPrev.reduce((a,b)=>a+b,0);
+  const foot=`<tr style="background:var(--s2)"><td style="font-weight:700;color:var(--text);vertical-align:top">รวม</td>${colTotals.map((v,i)=>`<td class="r" style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;color:var(--text);vertical-align:top">${fmt(v)}${badge(v,colPrev[i])}</td>`).join('')}<td class="amt r" style="font-size:13px;vertical-align:top">${fmt(grand)}${badge(grand,grandPrev)}</td></tr>`;
+  const caption=prevSM?`<div style="font-size:10px;color:var(--muted);margin-bottom:8px">▲▼ = เทียบช่วงเดียวกันปีก่อน (${THAI_M[months[0]]}–${THAI_M[months[months.length-1]]} ${prevY})</div>`:'';
+  el.innerHTML=caption+`<table class="tbl"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table>`;
 }
 
 function renderYCompare(el,key){
@@ -821,7 +833,7 @@ function render(){
   saleKpi.innerHTML=sp.map(s=>`<div class="kpi" style="--c:${sc2[s.name]||'var(--accent)'}"><div class="lbl">ยอดขาย (${s.name})</div><div class="val">${fmt(s.total)}<sup> บ.</sup></div><div class="sub">${((s.total/d.grandTotal)*100).toFixed(1)}% ของยอดรวม</div></div>`).join('');
   renderSaleBars(document.getElementById('sale-bars-full'),d.bySalesperson);
   renderDonut(document.getElementById('donut-sale-full'),d.bySalesperson,160);
-  renderSaleMonthly(document.getElementById('sale-monthly-tbl'),d);
+  renderSaleMonthly(document.getElementById('sale-monthly-tbl'),d,curYear);
 
   // Customers - reset search/filter/page
   custPage = 0;
