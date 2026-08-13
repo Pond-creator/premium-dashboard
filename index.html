@@ -433,13 +433,25 @@ async function fetchYearData(yr, attempt) {
     }
     const text = await res.text();
     if (!text || text.trim().startsWith('errors')) return null;  // GAS ตอบ error (ไม่มีชีต/รหัสผิด) → ไม่ต้อง retry
-    let csvText = text, top10 = null;
+    let csvText = text, top10 = null, custCount = null;
     const sep = '\n###TOP10###\n';
     const i = text.indexOf(sep);
-    if (i >= 0) { csvText = text.slice(0, i); top10 = parseTop10(text.slice(i + sep.length)); }
+    if (i >= 0) {
+      csvText = text.slice(0, i);
+      const block = text.slice(i + sep.length);
+      const nl = block.indexOf('\n');
+      const firstLine = (nl >= 0 ? block.slice(0, nl) : block).trim();
+      if (/^\d+$/.test(firstLine)) {   // รูปแบบใหม่: บรรทัดแรก = จำนวนลูกค้าจริง
+        custCount = parseInt(firstLine, 10);
+        top10 = parseTop10(nl >= 0 ? block.slice(nl + 1) : '');
+      } else {                          // รูปแบบเก่า (GAS ยังไม่ redeploy): ทั้ง block = Top10
+        top10 = parseTop10(block);
+      }
+    }
     const processed = processRows(parseCSV(csvText), yr);
     if (processed.orderCount === 0) return null;
     if (top10) processed.topCustomers = top10; // โหมดปกติ: ชื่อลูกค้าถูกซ่อน ใช้ Top10 จาก GAS
+    if (custCount != null) processed.customerCount = custCount; // ใช้จำนวนลูกค้าจริงจาก GAS (กันขึ้น 1)
     return { yr, processed };
   } catch(e) {  // network error → ลองใหม่
     if (attempt < 2) { await new Promise(r => setTimeout(r, 700 * (attempt + 1))); return fetchYearData(yr, attempt + 1); }
