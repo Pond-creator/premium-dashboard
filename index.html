@@ -459,12 +459,25 @@ async function fetchYearData(yr, attempt) {
   }
 }
 
+// ดึงจำนวนลูกค้าไม่ซ้ำข้ามทุกปี (สำหรับโหมด "ทั้งหมด")
+async function fetchAllCount() {
+  try {
+    const res = await fetch(`${GAS_URL}?token=${encodeURIComponent(GAS_TOKEN)}&sheet=__ALLCOUNT__&t=${Date.now()}`);
+    if (!res.ok) return null;
+    const t = (await res.text()).trim();
+    return /^\d+$/.test(t) ? parseInt(t, 10) : null;   // GAS เก่า/ผิดพลาด → null (ไม่กระทบ)
+  } catch(e) { return null; }
+}
+
 async function loadFromSheets() {
   const status = document.getElementById('load-status');
   if (status) status.style.display = 'flex';
   try {
-    // ดึงทุกปีพร้อมกัน (เร็วกว่าดึงทีละปี)
-    const settled = await Promise.all(YEARS.map(fetchYearData));
+    // ดึงทุกปี + จำนวนลูกค้ารวม พร้อมกัน (เร็วกว่าดึงทีละอัน)
+    const [settled, allCount] = await Promise.all([
+      Promise.all(YEARS.map(fetchYearData)),
+      fetchAllCount()
+    ]);
     const result = {};
     const foundYears = [];
     settled.forEach(r => { if (r) { result[r.yr] = r.processed; foundYears.push(r.yr); } });
@@ -491,7 +504,7 @@ async function loadFromSheets() {
     }
     DB['all']={
       grandTotal:Math.round(allT*100)/100, grandBefore:Math.round(allB*100)/100,
-      orderCount:allO, customerCount:Object.keys(allC).length,
+      orderCount:allO, customerCount: (allCount != null ? allCount : Object.keys(allC).length),
       monthly:Object.entries(allM).map(([m,t])=>({month:+m,total:Math.round(t*100)/100})).sort((a,b)=>a.month-b.month),
       bySalesperson:Object.entries(allS).map(([n,t])=>({name:n,total:Math.round(t*100)/100})).sort((a,b)=>b.total-a.total),
       saleMonthly:allSM,
