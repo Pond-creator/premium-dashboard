@@ -233,6 +233,7 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
       <div class="card-title"><span class="pip" style="background:var(--amber)"></span>รายชื่อลูกค้าทั้งหมด <span id="cust-count-lbl" style="color:var(--accent);margin-left:4px"></span></div>
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
         <input id="cust-search" type="text" placeholder="🔍 ค้นหาชื่อลูกค้า..." oninput="custSearch()"
+          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="cust-search-nofill"
           style="flex:1;min-width:200px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--s2);color:var(--text);font-size:12px;font-family:'Sarabun',sans-serif;outline:none">
         <div style="display:flex;gap:5px;flex-wrap:wrap">
           <button class="cust-filter-btn active" data-sale="all" onclick="custFilter('all')" style="padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--accent);color:#fff;font-size:11px;font-weight:600;cursor:pointer">ทั้งหมด</button>
@@ -641,6 +642,7 @@ function renderCustLock() {
     <div style="font-size:12px;color:var(--muted);margin-bottom:18px">กรอกรหัสเพื่อดูรายชื่อลูกค้าทั้งหมด</div>
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
       <input id="cust-pass" type="password" placeholder="รหัสผ่าน" onkeydown="if(event.key==='Enter')submitCustPass()"
+        autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" name="cust-pass-nofill"
         style="padding:9px 14px;border-radius:8px;border:1px solid var(--border);background:var(--s2);color:var(--text);font-size:13px;outline:none;width:180px;font-family:'Sarabun',sans-serif">
       <button onclick="submitCustPass()" style="padding:9px 20px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Sarabun',sans-serif">ปลดล็อก</button>
     </div>
