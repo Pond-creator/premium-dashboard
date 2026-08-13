@@ -463,14 +463,14 @@ async function loadFromSheets() {
     // Update global DB and re-render
     Object.assign(DB, result);
     // Rebuild 'all' from fresh data
-    const allC={}, allS={}, allM={}, allSM={};
+    const allC={}, allS={}, allM={}, allSM={}, allCSale={};
     let allT=0, allB=0, allO=0;
     for (const yr of foundYears.length?foundYears:YEARS) {
       if (!DB[yr]) continue;
       const d=DB[yr];
       allT+=d.grandTotal; allB+=d.grandBefore; allO+=d.orderCount;
       (d.bySalesperson||[]).forEach(s=>{allS[s.name]=(allS[s.name]||0)+s.total;});
-      (d.topCustomers||[]).forEach(c=>{allC[c.name]=(allC[c.name]||0)+c.total;});
+      (d.topCustomers||[]).forEach(c=>{allC[c.name]=(allC[c.name]||0)+c.total; if(c.sale && !allCSale[c.name]) allCSale[c.name]=c.sale;});
       (d.monthly||[]).forEach(m=>{allM[m.month]=(allM[m.month]||0)+m.total;});
       Object.entries(d.saleMonthly||{}).forEach(([sp,mm])=>{
         if(!allSM[sp]) allSM[sp]={};
@@ -483,7 +483,7 @@ async function loadFromSheets() {
       monthly:Object.entries(allM).map(([m,t])=>({month:+m,total:Math.round(t*100)/100})).sort((a,b)=>a.month-b.month),
       bySalesperson:Object.entries(allS).map(([n,t])=>({name:n,total:Math.round(t*100)/100})).sort((a,b)=>b.total-a.total),
       saleMonthly:allSM,
-      topCustomers:Object.entries(allC).map(([n,t])=>({name:n,total:Math.round(t*100)/100})).sort((a,b)=>b.total-a.total),
+      topCustomers:Object.entries(allC).map(([n,t])=>({name:n,total:Math.round(t*100)/100,sale:allCSale[n]||''})).sort((a,b)=>b.total-a.total),
     };
     if (status) status.style.display = 'none';
     render();
