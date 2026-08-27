@@ -140,6 +140,14 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
   <div style="width:14px;height:14px;border:2px solid #4f8ef7;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0"></div>
   <span>กำลังดึงข้อมูลล่าสุดจาก Google Sheets...</span>
 </div>
+<!-- overlay โหลดครั้งแรก (เด่น + % จริง) — แสดงตั้งแต่เปิดเว็บ ซ่อนเมื่อโหลดครบ กันคนอ่านตัวเลขกลางคัน -->
+<div id="load-overlay" style="position:fixed;inset:0;z-index:1000;background:rgba(7,9,15,.94);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;font-family:'Sarabun',sans-serif;text-align:center;padding:20px">
+  <div style="width:60px;height:60px;border:4px solid #1e2840;border-top-color:#4f8ef7;border-radius:50%;animation:spin .9s linear infinite"></div>
+  <div id="load-pct" style="font-size:42px;font-weight:800;color:#fff;font-family:'IBM Plex Mono',monospace;line-height:1">0%</div>
+  <div style="font-size:15px;font-weight:700;color:#dde4f0">⏳ กำลังประมวลผลข้อมูลให้ครบ 100%</div>
+  <div style="font-size:12px;color:#5a6a88">เพื่อความถูกต้อง กรุณารอสักครู่...</div>
+  <div style="width:280px;max-width:72vw;height:7px;background:#1e2840;border-radius:4px;overflow:hidden"><div id="load-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#4f8ef7,#22c55e);transition:width .35s ease"></div></div>
+</div>
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 <div class="header">
   <div class="brand">
@@ -249,6 +257,7 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
         <div class="page-btns" id="page-btns"></div>
       </div>
     </div>
+    <div id="data-quality" style="margin-top:14px"></div>
   </div>
 </div>
 <div class="footer">Premium UP · Premium Dashboard · ข้อมูล 2021–2026 · ไม่รวมแถวยอดรวม</div>
@@ -308,6 +317,7 @@ function getSalesperson(so) {
 
 function processRows(rows, sheetYear) {
   let grandTotal = 0, grandBefore = 0, orders = 0;
+  let orphanCount = 0, orphanTotal = 0; // ยอดที่ไม่มีชื่อลูกค้า (ตกไป 'อื่นๆ') — สำหรับตรวจสอบข้อมูล
   const monthly = {}, bySale = {}, byCust = {}, custSale = {}, custSO = {}, saleMonthly = {};
   let pendingCustName = ''; // จำชื่อลูกค้าจากแถวที่ไม่มียอด
   for (const row of rows) {
@@ -326,6 +336,7 @@ function processRows(rows, sheetYear) {
     // ชื่อลูกค้า — ใช้แถวนี้ก่อน ถ้าว่างใช้ที่จำไว้ ถ้าไม่มีเลยเป็น 'อื่นๆ'
     const custName = custRaw || pendingCustName || 'อื่นๆ';
     pendingCustName = ''; // reset หลังใช้แล้ว
+    if (custName === 'อื่นๆ') { orphanCount++; orphanTotal += total; } // ยอดที่คีย์ตกชื่อลูกค้า
     // ดูเดือนจาก Column B (วันที่) เป็นหลัก
     let mNum = null;
     const dateStr = (row[1] || '').toString().trim();
@@ -386,6 +397,8 @@ function processRows(rows, sheetYear) {
     grandBefore: Math.round(grandBefore * 100) / 100,
     orderCount: orders,
     customerCount: Object.keys(byCust).length,
+    orphanCount: orphanCount,
+    orphanTotal: Math.round(orphanTotal * 100) / 100,
     monthly: Object.entries(monthly).map(([m,t]) => ({month:+m, total:Math.round(t*100)/100})).sort((a,b)=>a.month-b.month),
     bySalesperson: Object.entries(bySale).map(([n,t]) => ({name:n, total:Math.round(t*100)/100})).sort((a,b)=>b.total-a.total),
     saleMonthly: saleMonthly,
@@ -469,14 +482,25 @@ async function fetchAllCount() {
   } catch(e) { return null; }
 }
 
+// คุม overlay โหลดครั้งแรก
+function updateLoadPct(pct) {
+  const p = Math.max(0, Math.min(100, Math.round(pct)));
+  const el = document.getElementById('load-pct'); if (el) el.textContent = p + '%';
+  const bar = document.getElementById('load-bar'); if (bar) bar.style.width = p + '%';
+}
+function hideLoadOverlay() { const o = document.getElementById('load-overlay'); if (o) o.style.display = 'none'; }
+
 async function loadFromSheets() {
   const status = document.getElementById('load-status');
   if (status) status.style.display = 'flex';
   try {
-    // ดึงทุกปี + จำนวนลูกค้ารวม พร้อมกัน (เร็วกว่าดึงทีละอัน)
+    // ดึงทุกปี + จำนวนลูกค้ารวม พร้อมกัน (เร็วกว่าดึงทีละอัน) + นับ % จริงตามที่โหลดเสร็จ
+    let done = 0; const totalUnits = YEARS.length + 1;
+    const bump = () => { done++; updateLoadPct(done / totalUnits * 100); };
+    updateLoadPct(0);
     const [settled, allCount] = await Promise.all([
-      Promise.all(YEARS.map(fetchYearData)),
-      fetchAllCount()
+      Promise.all(YEARS.map(yr => fetchYearData(yr).finally(bump))),
+      fetchAllCount().finally(bump)
     ]);
     const result = {};
     const foundYears = [];
@@ -489,11 +513,12 @@ async function loadFromSheets() {
     Object.assign(DB, result);
     // Rebuild 'all' from fresh data
     const allC={}, allS={}, allM={}, allSM={}, allCSale={};
-    let allT=0, allB=0, allO=0;
+    let allT=0, allB=0, allO=0, allOrphanC=0, allOrphanT=0;
     for (const yr of foundYears.length?foundYears:YEARS) {
       if (!DB[yr]) continue;
       const d=DB[yr];
       allT+=d.grandTotal; allB+=d.grandBefore; allO+=d.orderCount;
+      allOrphanC += d.orphanCount||0; allOrphanT += d.orphanTotal||0;
       (d.bySalesperson||[]).forEach(s=>{allS[s.name]=(allS[s.name]||0)+s.total;});
       (d.topCustomers||[]).forEach(c=>{allC[c.name]=(allC[c.name]||0)+c.total; if(c.sale && !allCSale[c.name]) allCSale[c.name]=c.sale;});
       (d.monthly||[]).forEach(m=>{allM[m.month]=(allM[m.month]||0)+m.total;});
@@ -505,16 +530,20 @@ async function loadFromSheets() {
     DB['all']={
       grandTotal:Math.round(allT*100)/100, grandBefore:Math.round(allB*100)/100,
       orderCount:allO, customerCount: (allCount != null ? allCount : Object.keys(allC).length),
+      orphanCount: allOrphanC, orphanTotal: Math.round(allOrphanT*100)/100,
       monthly:Object.entries(allM).map(([m,t])=>({month:+m,total:Math.round(t*100)/100})).sort((a,b)=>a.month-b.month),
       bySalesperson:Object.entries(allS).map(([n,t])=>({name:n,total:Math.round(t*100)/100})).sort((a,b)=>b.total-a.total),
       saleMonthly:allSM,
       topCustomers:Object.entries(allC).map(([n,t])=>({name:n,total:Math.round(t*100)/100,sale:allCSale[n]||''})).sort((a,b)=>b.total-a.total),
     };
     if (status) status.style.display = 'none';
+    updateLoadPct(100);
     render();
+    hideLoadOverlay();   // เผยตัวเลขจริงเมื่อโหลดครบ 100%
     console.log('✅ Loaded from Google Sheets');
   } catch(e) {
     if (status) status.style.display = 'none';
+    hideLoadOverlay();   // โหลดพลาด → เผยหน้า (ใช้ข้อมูลสำรอง) ไม่ค้าง overlay
     console.warn('⚠️ Could not load from Sheets, using embedded data:', e.message);
   }
 }
@@ -676,6 +705,47 @@ function renderCustLock() {
   const pi = document.getElementById('page-info'); if (pi) pi.textContent = '';
   const pb = document.getElementById('page-btns'); if (pb) pb.innerHTML = '';
   const cl = document.getElementById('cust-count-lbl'); if (cl) cl.textContent = '🔒';
+  const dq = document.getElementById('data-quality'); if (dq) dq.innerHTML = '';  // ซ่อนตรวจสอบข้อมูลตอนล็อก
+}
+
+// ── ตรวจสอบข้อมูล (อ่านอย่างเดียว — ช่วยหายอดตกหล่น/ลูกค้าซ้ำ ให้ไปแก้ในชีตเอง) ──
+function normCustName(s) {
+  return String(s).toLowerCase()
+    .replace(/\(.*?\)/g, '')                                             // ตัดวงเล็บ
+    .replace(/บริษัท|บมจ|บจก|หจก|จำกัด|มหาชน|จก\.?|company|co\.?|ltd\.?/gi, '') // ตัดคำบริษัท
+    .replace(/[\s.\-_,"'/]/g, '')                                        // ตัดช่องว่าง+เครื่องหมาย
+    .trim();
+}
+function renderDataQuality(d) {
+  const el = document.getElementById('data-quality');
+  if (!el) return;
+  const custs = (d.topCustomers || []).filter(c => c.name && c.name !== 'อื่นๆ');
+  // A) ยอดที่ไม่มีชื่อลูกค้า
+  const oc = d.orphanCount || 0, ot = d.orphanTotal || 0;
+  const cardA = oc > 0
+    ? `<div style="padding:10px 12px;border-radius:8px;background:rgba(245,158,11,.08);border:1px solid var(--amber);margin-bottom:10px">
+         <div style="font-size:12px;font-weight:700;color:var(--amber)">⚠️ ยอดที่ยังไม่มีชื่อลูกค้า</div>
+         <div style="font-size:12px;color:var(--text);margin-top:4px">${oc.toLocaleString()} รายการ รวม <b>${fmtFull(ot)} บ.</b> ถูกจัดเป็น "อื่นๆ" (น่าจะคีย์ชื่อตกหล่น) — ลองเปิดชีตดูแถวที่คอลัมน์ชื่อลูกค้าว่างแต่มียอด</div>
+       </div>`
+    : `<div style="padding:10px 12px;border-radius:8px;background:rgba(34,197,94,.08);border:1px solid var(--green);margin-bottom:10px"><div style="font-size:12px;color:var(--green)">✅ ทุกยอดมีชื่อลูกค้าครบ ไม่มีตกหล่น</div></div>`;
+  // B) ลูกค้าที่อาจซ้ำ (ชื่อคล้ายกันหลังตัดช่องว่าง/คำบริษัท)
+  const map = {};
+  custs.forEach(c => { const k = normCustName(c.name); if (k) (map[k] = map[k] || []).push(c); });
+  let groups = Object.values(map).filter(g => g.length >= 2)
+    .map(g => ({ items: g, sum: g.reduce((s, c) => s + c.total, 0) }))
+    .sort((a, b) => b.sum - a.sum).slice(0, 25);
+  let cardB;
+  if (groups.length) {
+    const rows = groups.map(g => `<tr><td style="font-size:11px;padding:6px 8px;border-top:1px solid var(--border)">${g.items.map(c => `${c.name} <span style="color:var(--muted)">(${fmt(c.total)})</span>`).join('<br>')}</td><td class="amt r" style="border-top:1px solid var(--border);vertical-align:top">${fmtFull(g.sum)}</td></tr>`).join('');
+    cardB = `<div style="padding:10px 12px;border-radius:8px;background:rgba(79,142,247,.06);border:1px solid var(--border2)">
+      <div style="font-size:12px;font-weight:700;color:var(--accent)">🔎 ชื่อลูกค้าที่อาจเป็นเจ้าเดียวกัน (${groups.length} กลุ่ม)</div>
+      <div style="font-size:11px;color:var(--muted);margin:4px 0 8px">อาจคีย์ชื่อต่างกันเล็กน้อย ทำให้ยอดไม่รวมกัน — ตรวจแล้วไปแก้ชื่อให้ตรงกันในชีต (ระบบไม่แก้ให้อัตโนมัติ)</div>
+      <table class="tbl" style="width:100%"><thead><tr><th>ชื่อที่คล้ายกัน (ยอดแต่ละชื่อ)</th><th class="r">ยอดรวมถ้าเป็นเจ้าเดียว</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+  } else {
+    cardB = `<div style="padding:10px 12px;border-radius:8px;background:rgba(34,197,94,.08);border:1px solid var(--green)"><div style="font-size:12px;color:var(--green)">✅ ไม่พบชื่อลูกค้าที่น่าจะซ้ำ</div></div>`;
+  }
+  el.innerHTML = `<div class="card"><div class="card-title"><span class="pip" style="background:var(--amber)"></span>ตรวจสอบข้อมูล (ช่วยหายอดตกหล่น · อ่านอย่างเดียว)</div>${cardA}${cardB}</div>`;
 }
 
 // ตรวจรหัสกับ GAS (โหมดปลดล็อกจะไม่มี block ###TOP10###)
@@ -986,6 +1056,7 @@ function render(){
   document.querySelectorAll('.cust-filter-btn').forEach(b => b.classList.toggle('active', b.dataset.sale === 'all'));
   if (custUnlocked) {
     renderCustPaged(getFilteredCustomers(), 0);
+    renderDataQuality(d);
   } else {
     renderCustLock();
   }
@@ -1047,6 +1118,7 @@ document.querySelectorAll('.vtab').forEach(btn=>{
 // render() with embedded data first for instant display
 render();
 detectAndLoadSheets();
+setTimeout(hideLoadOverlay, 25000);   // safety: กัน overlay ค้างถ้าโหลดนานผิดปกติ
 </script>
 </body>
 </html>
