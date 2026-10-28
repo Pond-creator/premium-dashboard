@@ -228,7 +228,7 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
 <div class="header">
   <div class="brand">
     <div class="brand-pulse"></div>
-    <div><h1>PREMIUM UP</h1><span>Premium Dashboard · 2021–2026</span></div>
+    <div><h1>PREMIUM UP</h1><span id="hdr-year-range">Premium Dashboard · 2021–2026</span></div>
   </div>
   <div class="header-controls">
     <div class="year-tabs" id="year-tabs">
@@ -278,7 +278,7 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
     <!-- แจ้งเตือนถ้ายังไม่ได้เลือกปี -->
     <div id="monthly-select-year" style="display:none;text-align:center;padding:60px 20px">
       <div style="font-size:40px;margin-bottom:16px">📅</div>
-      <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px">กรุณาเลือกปีก่อน</div>
+      <div id="monthly-select-msg" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px">กรุณาเลือกปีก่อน</div>
       <div style="font-size:13px;color:var(--muted)">หน้ารายเดือนแสดงผลเฉพาะปีที่เลือก</div>
     </div>
     <!-- เนื้อหาหน้ารายเดือน -->
@@ -324,13 +324,8 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
         <input id="cust-search" type="text" placeholder="🔍 ค้นหาชื่อลูกค้า..." oninput="custSearch()"
           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="cust-search-nofill"
           style="flex:1;min-width:200px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--s2);color:var(--text);font-size:12px;font-family:'Sarabun',sans-serif;outline:none">
-        <div style="display:flex;gap:5px;flex-wrap:wrap">
-          <button class="cust-filter-btn active" data-sale="all" onclick="custFilter('all')" style="padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--accent);color:#fff;font-size:11px;font-weight:600;cursor:pointer">ทั้งหมด</button>
-          <button class="cust-filter-btn" data-sale="แป๊ะ" onclick="custFilter('แป๊ะ')" style="padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--s2);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer">แป๊ะ</button>
-          <button class="cust-filter-btn" data-sale="จุ๋ม" onclick="custFilter('จุ๋ม')" style="padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--s2);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer">จุ๋ม</button>
-          <button class="cust-filter-btn" data-sale="หญิง" onclick="custFilter('หญิง')" style="padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--s2);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer">หญิง</button>
-          <button class="cust-filter-btn" data-sale="เป้ง" onclick="custFilter('เป้ง')" style="padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--s2);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer">เป้ง</button>
-        </div>
+        <!-- ปุ่มกรองเซลล์ สร้างอัตโนมัติจากเซลล์ที่มีจริงในปีที่เลือก (ดู renderCustFilterBtns) -->
+        <div id="cust-filter-btns" style="display:flex;gap:5px;flex-wrap:wrap"></div>
       </div>
       <div class="scroll-tbl" id="cust-full-tbl" style="max-height:none"></div>
       <div class="page-controls">
@@ -342,7 +337,7 @@ body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min
     <div id="data-quality" style="margin-top:14px"></div>
   </div>
 </div>
-<div class="footer">Premium UP · Premium Dashboard · ข้อมูล 2021–2026 · ไม่รวมแถวยอดรวม</div>
+<div class="footer" id="ftr-year-range">Premium UP · Premium Dashboard · ข้อมูล 2021–2026 · ไม่รวมแถวยอดรวม</div>
 
 <script>
 const THAI_M=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -518,6 +513,43 @@ function processRows(rows, sheetYear) {
   };
 }
 
+// ปีที่มีข้อมูลจริงในระบบ เรียงเก่า -> ใหม่
+// (เดิมหน้าเปรียบเทียบปีเขียนปีตายไว้ '2021'..'2026' ทำให้ปี 2027 ไม่มีคอลัมน์)
+function allYears(){
+  return Object.keys(DB).filter(y => /^\d{4}$/.test(y) && DB[y]).sort();
+}
+// รายชื่อเซลล์ทั้งหมดจากข้อมูลจริง เรียงยอดรวมมาก -> น้อย (ไม่เอา 'อื่นๆ')
+// (เดิมเขียนตายไว้ 4 ชื่อ ทำให้เซลล์ใหม่ไม่ขึ้นในตารางเปรียบเทียบปี)
+function allSalePeople(years){
+  const t = {};
+  years.forEach(y => (DB[y].bySalesperson || []).forEach(s => {
+    if (s.name !== 'อื่นๆ') t[s.name] = (t[s.name] || 0) + s.total;
+  }));
+  return Object.keys(t).sort((a, b) => t[b] - t[a]);
+}
+// วาดปุ่มปีใหม่ — แสดงเฉพาะปีที่มีข้อมูลจริง
+// (เดิมสร้างปุ่มจากปฏิทิน ทำให้ 1 ม.ค. 2027 มีปุ่ม 2027 โผล่ทั้งที่ยังไม่มีชีต)
+function renderYearTabs(years){
+  const tabsEl = document.getElementById('year-tabs');
+  if (!tabsEl) return;
+  const list = years.filter(y => DB[y]);
+  if (!list.length) return;                                  // ไม่มีปีไหนมีข้อมูลเลย -> คงปุ่มเดิมไว้
+  if (curYear !== 'all' && !DB[curYear]) curYear = 'all';     // ปีที่เลือกอยู่หายไป -> กลับไป 'ทั้งหมด'
+  tabsEl.innerHTML =
+    `<button class="ytab${curYear === 'all' ? ' active' : ''}" data-y="all">ทั้งหมด</button>` +
+    list.map(y => `<button class="ytab${curYear === y ? ' active' : ''}" data-y="${y}">${y}</button>`).join('');
+  renderYearRangeLabels();
+}
+// ป้ายช่วงปีบนหัวเว็บ/ท้ายเว็บ — เดิมเขียน '2021–2026' ตายไว้ พอขึ้นปี 2027 จะค้างเลขเก่า
+function renderYearRangeLabels(){
+  const ys = allYears(); if (!ys.length) return;
+  const txt = `${ys[0]}–${ys[ys.length-1]}`;
+  const h = document.getElementById('hdr-year-range');
+  if (h) h.textContent = `Premium Dashboard · ${txt}`;
+  const f = document.getElementById('ftr-year-range');
+  if (f) f.textContent = `Premium UP · Premium Dashboard · ข้อมูล ${txt} · ไม่รวมแถวยอดรวม`;
+}
+
 async function detectAndLoadSheets() {
   // สร้างลิสต์ปีอัตโนมัติ: ปีนี้ ถึง 2021
   const currentYear = new Date().getFullYear();
@@ -527,9 +559,7 @@ async function detectAndLoadSheets() {
 
   // อัพเดท Year Tabs อัตโนมัติ และ reset curYear ให้ตรงกับปุ่มที่ active
   curYear = 'all'; // ← สำคัญมาก: ต้องตรงกับปุ่มที่ active ด้านล่าง
-  const tabsEl = document.getElementById('year-tabs');
-  tabsEl.innerHTML = '<button class="ytab active" data-y="all">ทั้งหมด</button>' +
-    autoYears.map(y => `<button class="ytab" data-y="${y}">${y}</button>`).join('');
+  renderYearTabs(autoYears);   // ปีที่ยังไม่มีข้อมูลจะไม่มีปุ่ม
   return loadFromSheets();
 }
 
@@ -650,6 +680,7 @@ async function loadFromSheets() {
     };
     if (status) status.style.display = 'none';
     updateLoadPct(100);
+    renderYearTabs(YEARS);   // วาดปุ่มปีใหม่จากปีที่โหลดข้อมูลได้จริง
     render();
     hideLoadOverlay();   // เผยตัวเลขจริงเมื่อโหลดครบ 100%
     console.log('✅ Loaded from Google Sheets');
@@ -1295,16 +1326,26 @@ function renderSaleMonthly(el,d,year){
 }
 
 function renderYCompare(el,key){
-  const years=['2021','2022','2023','2024','2025','2026'];
+  const years=allYears();                                   // ปีจากข้อมูลจริง (รองรับ 2027+ เอง)
   const vals=years.map(y=>({year:y,val:DB[y][key]}));
   const max=Math.max(...vals.map(v=>v.val));
   const colors=['#1d4ed8','#126630','#9a4d07','#6528cf','#c01c1c','#0c6d85'];
-  el.innerHTML=vals.map((v,i)=>`<div class="yrow"><span class="yrname">${v.year}</span><div class="yrtrack"><div class="yrfill" style="width:${(v.val/max)*100}%;background:${colors[i]}">${key==='grandTotal'?fmt(v.val):v.val.toLocaleString()}</div></div><span class="yramt">${key==='grandTotal'?fmtFull(v.val)+' บ.':v.val.toLocaleString()+' ออเดอร์'}</span></div>`).join('');
+  el.innerHTML=vals.map((v,i)=>`<div class="yrow"><span class="yrname">${v.year}</span><div class="yrtrack"><div class="yrfill" style="width:${(v.val/max)*100}%;background:${colors[i%colors.length]}">${key==='grandTotal'?fmt(v.val):v.val.toLocaleString()}</div></div><span class="yramt">${key==='grandTotal'?fmtFull(v.val)+' บ.':v.val.toLocaleString()+' ออเดอร์'}</span></div>`).join('');
+}
+
+// ปุ่มกรองเซลล์หน้าลูกค้า — สร้างจากเซลล์ที่มีจริงในปีที่เลือก (เดิมเขียนตายไว้ 4 คน เซลล์ใหม่ไม่มีปุ่ม)
+function renderCustFilterBtns(d){
+  const host=document.getElementById('cust-filter-btns');
+  if(!host) return;
+  const names=(d&&d.bySalesperson?d.bySalesperson:[]).filter(s=>s.name!=='อื่นๆ').map(s=>s.name);
+  const base="padding:6px 12px;border-radius:7px;border:1px solid var(--border);font-size:11px;font-weight:600;cursor:pointer";
+  const btn=(val,on)=>`<button class="cust-filter-btn${on?' active':''}" data-sale="${val}" onclick="custFilter('${val}')" style="${base};background:${on?'var(--accent)':'var(--s2)'};color:${on?'#fff':'var(--muted)'}">${val==='all'?'ทั้งหมด':val}</button>`;
+  host.innerHTML=btn('all',custFilterSale==='all')+names.map(n=>btn(n,custFilterSale===n)).join('');
 }
 
 function renderSaleCompare(){
-  const years=['2021','2022','2023','2024','2025','2026'];
-  const people=['แป๊ะ','จุ๋ม','หญิง','เป้ง'];
+  const years=allYears();              // ปีจากข้อมูลจริง (รองรับ 2027+ เอง)
+  const people=allSalePeople(years);   // เซลล์จากข้อมูลจริง (เซลล์ใหม่ขึ้นเอง ยอดรวมไม่ตกหล่น)
   const totals={};
   const rows=people.map(p=>{
     const vals=years.map(y=>{const f=DB[y].bySalesperson.find(s=>s.name===p);return f?f.total:0;});
@@ -1316,7 +1357,7 @@ function renderSaleCompare(){
   const colTotals=years.map(y=>people.reduce((s,p)=>{const f=DB[y].bySalesperson.find(x=>x.name===p);return s+(f?f.total:0);},0));
   const grandTot=colTotals.reduce((a,b)=>a+b,0);
   const totalRow=`<tr style="background:var(--s2)"><td style="font-weight:700;color:var(--text)">รวม</td>${colTotals.map(v=>`<td class="r" style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;color:var(--text)">${fmt(v)}</td>`).join('')}<td class="amt r" style="font-size:13px">${fmt(grandTot)}</td></tr>`;
-  document.getElementById('sale-compare-tbl').innerHTML=`<table class="tbl"><thead><tr><th>เซลล์</th>${years.map(y=>`<th class="r">${y}</th>`).join('')}<th class="r">รวม 6 ปี</th></tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
+  document.getElementById('sale-compare-tbl').innerHTML=`<table class="tbl"><thead><tr><th>เซลล์</th>${years.map(y=>`<th class="r">${y}</th>`).join('')}<th class="r">รวม ${years.length} ปี</th></tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
 }
 
 let curMonth = 'all';
@@ -1346,11 +1387,15 @@ function renderMonthlySection() {
   const prev2Year = curYear !== 'all' ? String(+curYear - 2) : null;
   const prev2D = prev2Year && DB[prev2Year] ? DB[prev2Year] : null;
 
-  // ถ้าเลือก "ทั้งหมด" → บอกให้เลือกปี
+  // ถ้าเลือก "ทั้งหมด" หรือปีที่ยังไม่มีข้อมูล → แสดงกล่องแจ้งแทน (ห้ามวาดต่อ เดี๋ยวพังหรือโชว์เลขปีเก่า)
   const selectYearEl = document.getElementById('monthly-select-year');
   const contentEl = document.getElementById('monthly-content');
-  if (curYear === 'all') {
-    if (selectYearEl) selectYearEl.style.display = 'block';
+  if (curYear === 'all' || !d) {
+    if (selectYearEl) {
+      const h = document.getElementById('monthly-select-msg');
+      if (h) h.textContent = (!d && curYear !== 'all') ? `ยังไม่มีข้อมูลปี ${curYear}` : 'กรุณาเลือกปีก่อน';
+      selectYearEl.style.display = 'block';
+    }
     if (contentEl) contentEl.style.display = 'none';
     return;
   }
@@ -1504,8 +1549,28 @@ function renderBarHighlight(el, monthly, h, highlightMonth) {
   }).join('');
 }
 
+// ปีที่เลือกยังไม่มีข้อมูล -> ล้างจอแล้วบอกตรงๆ
+// สำคัญ: ถ้าไม่ล้าง ตัวเลขของปีก่อนจะค้างอยู่ใต้ป้ายปีใหม่ = คนอ่านผิดโดยไม่รู้ตัว
+function renderNoYearData(y){
+  const note=`<div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--muted)">`
+    +`<div style="font-size:34px;margin-bottom:10px">📭</div>`
+    +`<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px">ยังไม่มีข้อมูลปี ${y}</div>`
+    +`<div style="font-size:12px">กดเลือกปีอื่นที่ปุ่มมุมขวาบน</div></div>`;
+  ['kpi-overview','kpi-sale'].forEach(id=>{const e=document.getElementById(id); if(e) e.innerHTML=note;});
+  ['donut-sale','top-cust-tbl','sale-bars','bar-monthly','ov-rng','ov-foot','sale-bars-full',
+   'donut-sale-full','sale-monthly-tbl','yoy-body','yoy-rng','cust-full-tbl','page-btns',
+   'data-quality','cust-analysis-card'].forEach(id=>{const e=document.getElementById(id); if(e) e.innerHTML='';});
+  ['ov-range-lbl','yoy-label','page-info','cust-count-lbl'].forEach(id=>{const e=document.getElementById(id); if(e) e.textContent='';});
+  // หน้าเปรียบเทียบปีไม่ขึ้นกับปีที่เลือก -> ยังวาดได้ปกติ
+  renderYCompare(document.getElementById('ycompare-total'),'grandTotal');
+  renderYCompare(document.getElementById('ycompare-orders'),'orderCount');
+  renderSaleCompare();
+  renderMonthlySection();
+}
+
 function render(){
   const d=getD(curYear);
+  if(!d){ renderNoYearData(curYear); return; }   // กันจอค้างตัวเลขปีเก่าใต้ป้ายปีใหม่
   const prevYear=curYear!=='all'?String(+curYear-1):null;
   const prev=prevYear&&DB[prevYear]?DB[prevYear]:null;
 
@@ -1541,7 +1606,7 @@ function render(){
   custFilterSale = 'all';
   const searchEl = document.getElementById('cust-search');
   if (searchEl) searchEl.value = '';
-  document.querySelectorAll('.cust-filter-btn').forEach(b => b.classList.toggle('active', b.dataset.sale === 'all'));
+  renderCustFilterBtns(d);   // ปุ่มกรองตามเซลล์ที่มีจริงในปีนี้
   if (custUnlocked) {
     renderCustPaged(getFilteredCustomers(), 0);
     renderDataQuality(d);
@@ -1581,7 +1646,7 @@ document.querySelectorAll('.vtab').forEach(btn=>{
       document.querySelector('.header').classList.add('page-monthly-active');
       // ถ้าตอนนี้เลือก 'all' ให้วิ่งไปปีล่าสุดที่มีข้อมูลแทน
       if(curYear === 'all'){
-        const latestYear = YEARS[0]; // ปีใหม่สุด
+        const latestYear = YEARS.find(y => DB[y]) || 'all'; // ปีใหม่สุดที่มีข้อมูลจริง (YEARS ช่วงกำลังโหลดอาจมีปีที่ยังไม่มีชีต)
         curYear = latestYear;
         document.querySelectorAll('.ytab').forEach(t => t.classList.remove('active'));
         const ytab = document.querySelector(`.ytab[data-y="${latestYear}"]`);
